@@ -268,7 +268,17 @@ export default function ZKSonicApp() {
     }
 
     try {
-      const response = await fetch("/api/challenge/new", { method: "POST" });
+      const response = await fetch("/api/challenge/new", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate challenge");
+      }
+
       const data = await response.json();
       setChallenge(data.challenge);
       setQrCodeData(data.qrData);
@@ -288,28 +298,24 @@ export default function ZKSonicApp() {
     try {
       setScanError(null);
       const payload = JSON.parse(text);
+
+      // Validate QR payload structure
       if (!payload?.challenge || payload?.t !== "age18") {
-        throw new Error("Invalid QR payload");
+        throw new Error("Invalid QR payload - missing challenge or type");
       }
+
+      if (!payload?.credential) {
+        throw new Error("Invalid QR payload - missing credential data");
+      }
+
       const challengeNumber: number = Number(payload.challenge);
-
-      // Check if we have a credential, if not, try to load it
-      let credentialToUse = storedCredential;
-      if (!credentialToUse && typeof window !== "undefined") {
-        credentialToUse = getCredential();
-      }
-
-      if (!credentialToUse) {
-        throw new Error(
-          "No credential found. Please issue a credential first or ensure you have one stored."
-        );
-      }
+      const credentialFromQR = payload.credential;
 
       setVerificationStatus("verifying");
       setVerificationData(null);
 
-      // Generate proof
-      const proof = await generateProof(credentialToUse, challengeNumber);
+      // Generate proof using credential from QR code
+      const proof = await generateProof(credentialFromQR, challengeNumber);
 
       // Verify on chain
       const result = await verifyOnChain({
@@ -318,7 +324,7 @@ export default function ZKSonicApp() {
         c: proof.c,
         input: proof.input,
         challenge: challengeNumber,
-        did: storedUserDid || userDID,
+        did: credentialFromQR.subjectDid, // Use DID from credential
       });
 
       if (result.ok) {
@@ -327,6 +333,7 @@ export default function ZKSonicApp() {
           ageVerified: true,
           timestamp: new Date().toISOString(),
           proofHash: `0x${Math.random().toString(16).slice(2, 18)}`,
+          credentialId: credentialFromQR.id,
         });
         toast({
           title: "Verification Successful",
@@ -490,12 +497,12 @@ export default function ZKSonicApp() {
             <p className="text-muted-foreground mb-4">
               {storedCredential
                 ? "Scan the QR code above to submit your age proof"
-                : "Connect wallet and scan QR code to verify age proof"}
+                : "QR code contains credential data - scan to verify age proof"}
             </p>
             {!storedCredential && (
-              <p className="text-sm text-yellow-400">
+              <p className="text-sm text-blue-400">
                 {isConnected
-                  ? "No credential found. Issue a credential first or scan QR to load existing credential."
+                  ? "No credential found. Issue a credential first to generate QR code."
                   : "Connect your wallet to enable verification"}
               </p>
             )}
@@ -545,6 +552,12 @@ export default function ZKSonicApp() {
                     <span className="font-medium">Proof Hash:</span>{" "}
                     {verificationData.proofHash}
                   </p>
+                  {verificationData.credentialId && (
+                    <p>
+                      <span className="font-medium">Credential ID:</span>{" "}
+                      {verificationData.credentialId}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -1268,7 +1281,7 @@ export default function ZKSonicApp() {
                   <p className="text-sm text-muted-foreground">
                     {storedCredential
                       ? "Scan the QR code above to generate and verify your age proof"
-                      : "Connect wallet and scan QR code to verify age proof (credential will be loaded automatically)"}
+                      : "QR code contains credential data - scan to verify age proof without needing local storage"}
                   </p>
 
                   {scanActive && (
