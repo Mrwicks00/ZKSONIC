@@ -32,7 +32,11 @@ import { useToast } from "@/hooks/use-toast";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useBalance, useChainId } from "wagmi";
 import { useCredential, type AgeCredential } from "@/hooks/useCredential";
-import { useDid, registerDidWithWallet } from "@/hooks/useDid";
+import {
+  useDid,
+  registerDidWithWallet,
+  checkDidRegistration,
+} from "@/hooks/useDid";
 import { generateProof, verifyOnChain } from "@/hooks/useProof";
 import { didFromAddress, truncateAddress } from "@/lib/utils";
 import QRCode from "react-qr-code";
@@ -128,6 +132,18 @@ export default function ZKSonicApp() {
       }
     }
   }, []);
+
+  // Check DID registration when wallet connects
+  useEffect(() => {
+    if (isConnected && address && window.ethereum) {
+      checkDidRegistration(window.ethereum, address).then((result) => {
+        if (result.isRegistered && result.did) {
+          // DID is registered on-chain, it's already cached in localStorage
+          console.log("DID found on-chain:", result.did);
+        }
+      });
+    }
+  }, [isConnected, address]);
 
   // Auto-populate recipient DID when user has a registered DID
   useEffect(() => {
@@ -277,15 +293,23 @@ export default function ZKSonicApp() {
       }
       const challengeNumber: number = Number(payload.challenge);
 
-      if (!storedCredential) {
-        throw new Error("No credential found. Issue a credential first.");
+      // Check if we have a credential, if not, try to load it
+      let credentialToUse = storedCredential;
+      if (!credentialToUse && typeof window !== "undefined") {
+        credentialToUse = getCredential();
+      }
+
+      if (!credentialToUse) {
+        throw new Error(
+          "No credential found. Please issue a credential first or ensure you have one stored."
+        );
       }
 
       setVerificationStatus("verifying");
       setVerificationData(null);
 
       // Generate proof
-      const proof = await generateProof(storedCredential, challengeNumber);
+      const proof = await generateProof(credentialToUse, challengeNumber);
 
       // Verify on chain
       const result = await verifyOnChain({
@@ -395,21 +419,29 @@ export default function ZKSonicApp() {
   const renderWalletInfo = () => {
     if (isConnected && address) {
       return (
-        <div className="flex items-center space-x-2">
-          <Badge variant="secondary" className="bg-card border border-border">
-            <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 max-w-[200px] sm:max-w-none">
+          <Badge
+            variant="secondary"
+            className="bg-card border border-border text-xs"
+          >
+            <div className="flex items-center space-x-1">
               <div
                 className={`w-2 h-2 rounded-full ${
                   isCorrectNetwork ? "bg-green-400" : "bg-yellow-400"
                 }`}
               />
-              <span>{truncateAddress(address)}</span>
+              <span className="hidden sm:inline">
+                {truncateAddress(address)}
+              </span>
+              <span className="sm:hidden">
+                {address.slice(0, 4)}...{address.slice(-2)}
+              </span>
             </div>
           </Badge>
           {balance && (
             <Badge
               variant="outline"
-              className="border-border bg-transparent text-muted-foreground"
+              className="border-border bg-transparent text-muted-foreground text-xs hidden sm:inline-flex"
             >
               {parseFloat(balance.formatted).toFixed(4)} {balance.symbol}
             </Badge>
@@ -456,11 +488,15 @@ export default function ZKSonicApp() {
               Awaiting Proof Verification
             </h3>
             <p className="text-muted-foreground mb-4">
-              Scan the QR code above to submit your age proof
+              {storedCredential
+                ? "Scan the QR code above to submit your age proof"
+                : "Connect wallet and scan QR code to verify age proof"}
             </p>
             {!storedCredential && (
-              <p className="text-sm text-muted-foreground">
-                Issue a credential first to enable verification
+              <p className="text-sm text-yellow-400">
+                {isConnected
+                  ? "No credential found. Issue a credential first or scan QR to load existing credential."
+                  : "Connect your wallet to enable verification"}
               </p>
             )}
           </div>
@@ -591,33 +627,37 @@ export default function ZKSonicApp() {
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+            <div className="flex items-center space-x-3 min-w-0 flex-1">
+              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
                 <Shield className="w-5 h-5 text-primary-foreground" />
               </div>
-              <div>
-                <h1 className="text-xl font-bold text-foreground">ZKSONIC</h1>
-                <p className="text-sm text-muted-foreground">
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl font-bold text-foreground">
+                  ZKSONIC
+                </h1>
+                <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
                   ZKP-Enabled Identity
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={toggleTheme}
-                className="w-9 h-9"
+                className="w-8 h-8 sm:w-9 sm:h-9"
               >
                 {theme === "dark" ? (
-                  <Sun className="w-4 h-4" />
+                  <Sun className="w-3 h-3 sm:w-4 sm:h-4" />
                 ) : (
-                  <Moon className="w-4 h-4" />
+                  <Moon className="w-3 h-3 sm:w-4 sm:h-4" />
                 )}
               </Button>
               {renderWalletInfo()}
-              <ConnectButton />
+              <div className="scale-90 sm:scale-100">
+                <ConnectButton />
+              </div>
             </div>
           </div>
         </div>
@@ -631,24 +671,27 @@ export default function ZKSonicApp() {
           <TabsList className="grid w-full grid-cols-3 bg-card border border-border">
             <TabsTrigger
               value="identity"
-              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-xs sm:text-sm"
             >
-              <User className="w-4 h-4 mr-2" />
-              My Identity
+              <User className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">My Identity</span>
+              <span className="sm:hidden">Identity</span>
             </TabsTrigger>
             <TabsTrigger
               value="issue"
-              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-xs sm:text-sm"
             >
-              <FileText className="w-4 h-4 mr-2" />
-              Issue Credential
+              <FileText className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Issue Credential</span>
+              <span className="sm:hidden">Issue</span>
             </TabsTrigger>
             <TabsTrigger
               value="verify"
-              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-xs sm:text-sm"
             >
-              <Shield className="w-4 h-4 mr-2" />
-              Verify Proof
+              <Shield className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Verify Proof</span>
+              <span className="sm:hidden">Verify</span>
             </TabsTrigger>
           </TabsList>
 
@@ -904,7 +947,7 @@ export default function ZKSonicApp() {
                     <Label htmlFor="recipientDID" className="text-white">
                       Recipient DID
                     </Label>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <Input
                         id="recipientDID"
                         placeholder="did:sonic:example123..."
@@ -915,7 +958,7 @@ export default function ZKSonicApp() {
                             recipientDID: e.target.value,
                           }))
                         }
-                        className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+                        className="bg-muted border-border text-foreground placeholder:text-muted-foreground flex-1"
                       />
                       {storedUserDid && (
                         <Button
@@ -928,7 +971,7 @@ export default function ZKSonicApp() {
                               recipientDID: storedUserDid,
                             }))
                           }
-                          className="border-border bg-transparent flex-shrink-0"
+                          className="border-border bg-transparent flex-shrink-0 w-full sm:w-auto"
                         >
                           <Copy className="w-4 h-4 mr-1" />
                           Use My DID
@@ -991,7 +1034,7 @@ export default function ZKSonicApp() {
                       <Calendar className="w-4 h-4 mr-2" />
                       Birth Date
                     </Label>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="space-y-1">
                         <Label
                           htmlFor="birthDate"
@@ -1185,14 +1228,14 @@ export default function ZKSonicApp() {
                         <QRCode value={qrCodeData} size={180} />
                       </div>
 
-                      <div className="flex justify-center gap-2">
+                      <div className="flex flex-col sm:flex-row justify-center gap-2">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() =>
                             copyToClipboard(qrCodeData, "QR Code Data")
                           }
-                          className="border-border bg-transparent"
+                          className="border-border bg-transparent w-full sm:w-auto"
                         >
                           <Copy className="w-3 h-3 mr-2" />
                           Copy QR Data
@@ -1201,7 +1244,7 @@ export default function ZKSonicApp() {
                           variant="outline"
                           size="sm"
                           onClick={generateNewChallenge}
-                          className="border-border bg-transparent"
+                          className="border-border bg-transparent w-full sm:w-auto"
                         >
                           <QrCodeIcon className="w-3 h-3 mr-2" />
                           Generate New QR
@@ -1218,47 +1261,53 @@ export default function ZKSonicApp() {
                 </div>
 
                 {/* QR Scanner Section */}
-                {storedCredential && (
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium text-white">
-                      Scan QR to Verify
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Scan the QR code above to generate and verify your age
-                      proof
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium text-white">
+                    Scan QR to Verify
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {storedCredential
+                      ? "Scan the QR code above to generate and verify your age proof"
+                      : "Connect wallet and scan QR code to verify age proof (credential will be loaded automatically)"}
+                  </p>
+
+                  {scanActive && (
+                    <div className="rounded-xl overflow-hidden">
+                      <Scanner
+                        onScan={(result) => {
+                          if (result && result.length > 0) {
+                            handleScan(result[0].rawValue);
+                          }
+                        }}
+                        onError={handleScanError}
+                        scanDelay={250}
+                      />
+                    </div>
+                  )}
+
+                  {!scanActive && (
+                    <Button
+                      onClick={() => setScanActive(true)}
+                      className="bg-primary hover:bg-primary/90"
+                      disabled={!isConnected}
+                    >
+                      <QrCodeIcon className="w-4 h-4 mr-2" />
+                      {isConnected ? "Start Scanning" : "Connect Wallet First"}
+                    </Button>
+                  )}
+
+                  {!isConnected && (
+                    <p className="text-sm text-yellow-400">
+                      Connect your wallet to enable QR scanning
                     </p>
+                  )}
 
-                    {scanActive && (
-                      <div className="rounded-xl overflow-hidden">
-                        <Scanner
-                          onScan={(result) => {
-                            if (result && result.length > 0) {
-                              handleScan(result[0].rawValue);
-                            }
-                          }}
-                          onError={handleScanError}
-                          scanDelay={250}
-                        />
-                      </div>
-                    )}
-
-                    {!scanActive && (
-                      <Button
-                        onClick={() => setScanActive(true)}
-                        className="bg-primary hover:bg-primary/90"
-                      >
-                        <QrCodeIcon className="w-4 h-4 mr-2" />
-                        Start Scanning
-                      </Button>
-                    )}
-
-                    {scanError && (
-                      <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-                        {scanError}
-                      </div>
-                    )}
-                  </div>
-                )}
+                  {scanError && (
+                    <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                      {scanError}
+                    </div>
+                  )}
+                </div>
 
                 {/* Verification Status */}
                 <div className="py-8">{renderVerificationStatus()}</div>

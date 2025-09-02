@@ -22,6 +22,31 @@ export async function registerDidWithWallet(provider: any, didDocumentURI = "") 
   return { did, didHash: hash, txHash: tx.hash };
 }
 
+// Check if a DID is registered on-chain
+export async function checkDidRegistration(provider: any, address: string) {
+  try {
+    const ethersProvider = new ethers.BrowserProvider(provider);
+    const did = didFromAddress(address);
+    const hash = didHash(did);
+    
+    const n = ADDRESSES.sonicTestnet;
+    const reg = new ethers.Contract(n.DIDRegistry, DIDRegistryABI, ethersProvider);
+    
+    // Check if DID is registered and not revoked
+    const didInfo = await reg.dids(hash);
+    const isRegistered = didInfo.owner !== ethers.ZeroAddress && !didInfo.revoked;
+    
+    if (isRegistered && typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE.did, did);
+    }
+    
+    return { isRegistered, did, didInfo };
+  } catch (error) {
+    console.error('Error checking DID registration:', error);
+    return { isRegistered: false, did: null, didInfo: null };
+  }
+}
+
 export function useDid() {
   const get = (): string | null => {
     if (typeof window === 'undefined') return null;
