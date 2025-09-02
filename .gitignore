@@ -1,0 +1,27 @@
+# Node modules
+node_modules/
+
+# Hardhat & Typechain artifacts
+artifacts/
+cache/
+typechain-types/
+
+# Circom compiled outputs
+public/**/*.wasm
+public/**/*.r1cs
+public/**/*.sym
+public/**/*.zkey
+public/**/*.wtns
+public/**/*.ptau
+public/**/proof.json
+public/**/public.json
+
+# Local test inputs
+input.json
+input_under18.json
+
+# Env files
+.env
+
+# Logs & misc
+*.log

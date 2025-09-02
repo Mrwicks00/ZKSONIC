@@ -1,0 +1,8 @@
+{
+  "network": "sonicTestnet",
+  "deployer": "0x92c7b8C73f9EfAA4D47545B1c0bFaf3375743e79",
+  "DIDRegistry": "0xcBa8f35Facd42Ae431C2837e8263e5c9636dB644",
+  "CredentialIssuer": "0x669d6Ec9d9FA2aeef3ec79AD0b504c781c58Ee71",
+  "Groth16Verifier": "0x9114D600648f723611480047EA6b0E5463281577",
+  "AgeGate": "0x093E7D57E555c620532d7430C09C147674AAE846"
+}
