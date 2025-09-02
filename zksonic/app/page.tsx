@@ -97,8 +97,10 @@ export default function ZKSonicApp() {
   const [verificationData, setVerificationData] = useState<any>(null);
   const [qrCodeData, setQrCodeData] = useState("");
   const [challenge, setChallenge] = useState<number | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [scanActive, setScanActive] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [isPolling, setIsPolling] = useState(false);
 
   // Issue form state
   const [issueForm, setIssueForm] = useState({
@@ -281,9 +283,15 @@ export default function ZKSonicApp() {
 
       const data = await response.json();
       setChallenge(data.challenge);
+      setSessionId(data.sessionId);
       setQrCodeData(data.qrData);
       setVerificationStatus("awaiting");
       setVerificationData(null);
+
+      // Start polling for verification results (with small delay to ensure session is created)
+      setTimeout(() => {
+        startPolling(data.sessionId);
+      }, 1000);
     } catch (error: any) {
       toast({
         title: "Failed to Generate Challenge",
@@ -293,7 +301,100 @@ export default function ZKSonicApp() {
     }
   };
 
-  // Handle QR scan and verification
+  // Poll for verification status
+  const startPolling = (sessionId: string) => {
+    setIsPolling(true);
+    let pollCount = 0;
+    const maxPolls = 150; // 5 minutes at 2-second intervals
+
+    const pollInterval = setInterval(async () => {
+      try {
+        pollCount++;
+
+        // Stop polling if we've reached max attempts
+        if (pollCount >= maxPolls) {
+          clearInterval(pollInterval);
+          setIsPolling(false);
+          setVerificationStatus("failed");
+          setVerificationData({
+            error: "Verification timeout - no response from server",
+            timestamp: new Date().toISOString(),
+          });
+          toast({
+            title: "Verification Timeout",
+            description: "No response from server after 5 minutes",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const response = await fetch(`/api/verify/status/${sessionId}`);
+
+        if (response.ok) {
+          const data = await response.json();
+
+          if (data.status === "success") {
+            setVerificationStatus("success");
+            setVerificationData({
+              ageVerified: true,
+              timestamp: new Date().toISOString(),
+              proofHash: `0x${Math.random().toString(16).slice(2, 18)}`,
+              credentialId: data.result?.credentialId,
+              sessionId: data.sessionId,
+            });
+            toast({
+              title: "Verification Successful",
+              description: "Age proof has been successfully verified on-chain",
+            });
+            clearInterval(pollInterval);
+            setIsPolling(false);
+          } else if (data.status === "failed") {
+            setVerificationStatus("failed");
+            setVerificationData({
+              error: data.error || "Verification failed",
+              timestamp: new Date().toISOString(),
+              sessionId: data.sessionId,
+            });
+            toast({
+              title: "Verification Failed",
+              description: data.error || "Unable to verify age proof",
+              variant: "destructive",
+            });
+            clearInterval(pollInterval);
+            setIsPolling(false);
+          } else if (data.status === "processing") {
+            // Continue polling - verification in progress
+            console.log(
+              `Verification in progress... (${pollCount}/${maxPolls})`
+            );
+          }
+        } else if (response.status === 404) {
+          // Session not found - stop polling
+          clearInterval(pollInterval);
+          setIsPolling(false);
+          setVerificationStatus("failed");
+          setVerificationData({
+            error: "Session not found or expired",
+            timestamp: new Date().toISOString(),
+          });
+          toast({
+            title: "Session Expired",
+            description: "Verification session not found or expired",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error("Polling error:", error);
+        // Continue polling on network errors unless it's the last attempt
+        if (pollCount >= maxPolls) {
+          clearInterval(pollInterval);
+          setIsPolling(false);
+        }
+      }
+    }, 2000); // Poll every 2 seconds
+  };
+
+  // Handle QR scan and verification (Option 3 - send to server)
   const handleScan = async (text: string) => {
     try {
       setScanError(null);
@@ -304,36 +405,40 @@ export default function ZKSonicApp() {
         throw new Error("Invalid QR payload - missing challenge or type");
       }
 
-      if (!payload?.credential) {
-        throw new Error("Invalid QR payload - missing credential data");
+      if (!payload?.sessionId) {
+        throw new Error("Invalid QR payload - missing session ID");
       }
 
       const challengeNumber: number = Number(payload.challenge);
-      const credentialFromQR = payload.credential;
+      const sessionId = payload.sessionId;
 
       setVerificationStatus("verifying");
       setVerificationData(null);
 
-      // Generate proof using credential from QR code
-      const proof = await generateProof(credentialFromQR, challengeNumber);
-
-      // Verify on chain
-      const result = await verifyOnChain({
-        a: proof.a,
-        b: proof.b,
-        c: proof.c,
-        input: proof.input,
-        challenge: challengeNumber,
-        did: credentialFromQR.subjectDid, // Use DID from credential
+      // Send scan data to server for processing
+      const response = await fetch("/api/verify/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          userDid: storedUserDid || userDID,
+        }),
       });
 
-      if (result.ok) {
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to process verification");
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
         setVerificationStatus("success");
         setVerificationData({
           ageVerified: true,
           timestamp: new Date().toISOString(),
           proofHash: `0x${Math.random().toString(16).slice(2, 18)}`,
-          credentialId: credentialFromQR.id,
+          sessionId: result.sessionId,
         });
         toast({
           title: "Verification Successful",
@@ -342,12 +447,12 @@ export default function ZKSonicApp() {
       } else {
         setVerificationStatus("failed");
         setVerificationData({
-          error: "Proof verification failed",
+          error: result.error || "Verification failed",
           timestamp: new Date().toISOString(),
         });
         toast({
           title: "Verification Failed",
-          description: "Unable to verify age proof",
+          description: result.error || "Unable to verify age proof",
           variant: "destructive",
         });
       }
@@ -497,13 +602,18 @@ export default function ZKSonicApp() {
             <p className="text-muted-foreground mb-4">
               {storedCredential
                 ? "Scan the QR code above to submit your age proof"
-                : "QR code contains credential data - scan to verify age proof"}
+                : "QR code contains challenge - scan to verify age proof"}
             </p>
             {!storedCredential && (
               <p className="text-sm text-blue-400">
                 {isConnected
                   ? "No credential found. Issue a credential first to generate QR code."
                   : "Connect your wallet to enable verification"}
+              </p>
+            )}
+            {isPolling && (
+              <p className="text-sm text-yellow-400">
+                Waiting for phone to scan QR code and process verification...
               </p>
             )}
           </div>
@@ -556,6 +666,12 @@ export default function ZKSonicApp() {
                     <p>
                       <span className="font-medium">Credential ID:</span>{" "}
                       {verificationData.credentialId}
+                    </p>
+                  )}
+                  {verificationData.sessionId && (
+                    <p>
+                      <span className="font-medium">Session ID:</span>{" "}
+                      {verificationData.sessionId}
                     </p>
                   )}
                 </div>
@@ -1281,7 +1397,7 @@ export default function ZKSonicApp() {
                   <p className="text-sm text-muted-foreground">
                     {storedCredential
                       ? "Scan the QR code above to generate and verify your age proof"
-                      : "QR code contains credential data - scan to verify age proof without needing local storage"}
+                      : "QR code contains challenge - scan to verify age proof (server processes verification)"}
                   </p>
 
                   {scanActive && (
