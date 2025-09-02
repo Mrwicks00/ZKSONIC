@@ -5,7 +5,7 @@
 export interface VerificationSession {
   challenge: number;
   credential: any;
-  status: 'pending' | 'processing' | 'success' | 'failed';
+  status: "pending" | "processing" | "success" | "failed";
   userDid?: string;
   result?: any;
   error?: string;
@@ -15,7 +15,15 @@ export interface VerificationSession {
   expiresAt: number;
 }
 
-export const verificationSessions = new Map<string, VerificationSession>();
+// Global singleton to ensure same instance across all API routes
+declare global {
+  var __verificationSessions: Map<string, VerificationSession> | undefined;
+  var __cleanupInterval: NodeJS.Timeout | undefined;
+}
+
+// Use global variable to persist across Next.js hot reloads and API route instances
+export const verificationSessions = (globalThis.__verificationSessions ??=
+  new Map<string, VerificationSession>());
 
 // Cleanup expired sessions
 export const cleanupExpiredSessions = () => {
@@ -27,5 +35,10 @@ export const cleanupExpiredSessions = () => {
   }
 };
 
-// Run cleanup every 5 minutes
-setInterval(cleanupExpiredSessions, 5 * 60 * 1000);
+// Run cleanup every 5 minutes (only once globally)
+if (!globalThis.__cleanupInterval) {
+  globalThis.__cleanupInterval = setInterval(
+    cleanupExpiredSessions,
+    5 * 60 * 1000
+  );
+}

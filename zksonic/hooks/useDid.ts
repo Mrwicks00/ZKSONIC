@@ -3,10 +3,12 @@ import { ethers } from "ethers";
 import { ADDRESSES } from "@/lib/addresses";
 import { DIDRegistryABI } from "@/lib/abi/DIDRegistry";
 import { didFromAddress, didHash, STORAGE } from "@/lib/utils";
+import type { WalletClient } from "viem";
 
-export async function registerDidWithWallet(provider: any, didDocumentURI = "") {
-  const ethersProvider = new ethers.BrowserProvider(provider);
-  const signer = await ethersProvider.getSigner();
+export async function registerDidWithWallet(walletClient: WalletClient, didDocumentURI = "") {
+  // Convert viem wallet client to ethers provider
+  const provider = new ethers.BrowserProvider(walletClient as any);
+  const signer = await provider.getSigner();
   const address = await signer.getAddress();
   const did = didFromAddress(address);
   const hash = didHash(did);
@@ -23,9 +25,10 @@ export async function registerDidWithWallet(provider: any, didDocumentURI = "") 
 }
 
 // Check if a DID is registered on-chain
-export async function checkDidRegistration(provider: any, address: string) {
+export async function checkDidRegistration(walletClient: WalletClient, address: string) {
   try {
-    const ethersProvider = new ethers.BrowserProvider(provider);
+    // Convert viem wallet client to ethers provider
+    const ethersProvider = new ethers.BrowserProvider(walletClient as any);
     const did = didFromAddress(address);
     const hash = didHash(did);
     

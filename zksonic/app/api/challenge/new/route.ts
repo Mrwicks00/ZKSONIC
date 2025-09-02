@@ -21,13 +21,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Store session data (credential + challenge)
-    verificationSessions.set(sessionId, {
+    const sessionData = {
       challenge,
       credential,
       status: "pending",
       createdAt: Date.now(),
       expiresAt: Date.now() + 180 * 1000, // 3 minutes
-    });
+    };
+
+    verificationSessions.set(sessionId, sessionData);
 
     // QR only contains challenge and session ID
     const qrData = JSON.stringify({

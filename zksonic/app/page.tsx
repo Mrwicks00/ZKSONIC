@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useBalance, useChainId } from "wagmi";
+import { useAccount, useBalance, useChainId, useWalletClient } from "wagmi";
 import { useCredential, type AgeCredential } from "@/hooks/useCredential";
 import {
   useDid,
@@ -81,6 +81,7 @@ export default function ZKSonicApp() {
   const { address, isConnected } = useAccount();
   const { data: balance } = useBalance({ address });
   const chainId = useChainId();
+  const { data: walletClient } = useWalletClient();
 
   // Our custom hooks
   const { get: getCredential, set: setCredential } = useCredential();
@@ -137,15 +138,15 @@ export default function ZKSonicApp() {
 
   // Check DID registration when wallet connects
   useEffect(() => {
-    if (isConnected && address && window.ethereum) {
-      checkDidRegistration(window.ethereum, address).then((result) => {
+    if (isConnected && address && walletClient) {
+      checkDidRegistration(walletClient, address).then((result) => {
         if (result.isRegistered && result.did) {
           // DID is registered on-chain, it's already cached in localStorage
           console.log("DID found on-chain:", result.did);
         }
       });
     }
-  }, [isConnected, address]);
+  }, [isConnected, address, walletClient]);
 
   // Auto-populate recipient DID when user has a registered DID
   useEffect(() => {
@@ -179,7 +180,10 @@ export default function ZKSonicApp() {
 
     setIsRegistering(true);
     try {
-      const result = await registerDidWithWallet(window.ethereum, "");
+      if (!walletClient) {
+        throw new Error("Wallet not connected");
+      }
+      const result = await registerDidWithWallet(walletClient, "");
       toast({
         title: "DID Registered",
         description: `Successfully registered ${result.did}`,
@@ -282,6 +286,7 @@ export default function ZKSonicApp() {
       }
 
       const data = await response.json();
+
       setChallenge(data.challenge);
       setSessionId(data.sessionId);
       setQrCodeData(data.qrData);
