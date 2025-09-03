@@ -5,7 +5,13 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, updateSession } from "@/lib/redis-sessions";
-import { createWalletClient, http, parseAbi, defineChain } from "viem";
+import {
+  createWalletClient,
+  http,
+  parseAbi,
+  defineChain,
+  createPublicClient,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { ADDRESSES } from "@/lib/addresses";
 
@@ -196,6 +202,12 @@ async function submitVerificationToBlockchain(params: VerificationSubmission) {
     transport: http(),
   });
 
+  // Create public client for balance checking
+  const publicClient = createPublicClient({
+    chain: sonicTestnet,
+    transport: http(),
+  });
+
   console.log("Wallet client created for address:", account.address);
   console.log(
     "Contract address:",
@@ -207,7 +219,7 @@ async function submitVerificationToBlockchain(params: VerificationSubmission) {
   console.log("Submitting transaction...");
 
   // Check account balance first
-  const balance = await walletClient.getBalance({ address: account.address });
+  const balance = await publicClient.getBalance({ address: account.address });
   console.log("Account balance:", balance.toString(), "wei");
 
   // Submit the verification transaction
