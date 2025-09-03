@@ -55,7 +55,18 @@ export async function getSession(
 ): Promise<VerificationSession | null> {
   try {
     const data = await redis.get(`${SESSION_PREFIX}${sessionId}`);
-    return data ? JSON.parse(data as string) : null;
+    console.log(`Raw Redis data for ${sessionId}:`, typeof data, data);
+
+    // Handle both string and object responses from Redis
+    if (!data) return null;
+
+    if (typeof data === "string") {
+      return JSON.parse(data);
+    } else if (typeof data === "object") {
+      return data as VerificationSession;
+    }
+
+    return null;
   } catch (error) {
     console.error("Error getting session:", error);
     return null;
