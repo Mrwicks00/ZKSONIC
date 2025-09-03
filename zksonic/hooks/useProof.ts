@@ -56,21 +56,21 @@ export async function generateProof(
   const c: [string, string] = [argv[2][0], argv[2][1]];
 
   // Reorder public signals to match smart contract expectation
-  // Circuit outputs: [isOver18, currentYear, currentMonth, currentDay, challenge]
-  // Smart contract expects: [currentYear, currentMonth, currentDay, challenge, isOver18]
+  // Circuit outputs: [currentYear, currentMonth, currentDay, challenge, isOver18]
+  // Smart contract expects: [isOver18, currentYear, currentMonth, currentDay, challenge]
   const rawInput: string[] = argv[3];
   const input: string[] = [
-    rawInput[1], // currentYear
-    rawInput[2], // currentMonth
-    rawInput[3], // currentDay
-    rawInput[4], // challenge
-    rawInput[0], // isOver18 (moved to position 4)
+    rawInput[4], // isOver18 (moved to position 0)
+    rawInput[0], // currentYear
+    rawInput[1], // currentMonth
+    rawInput[2], // currentDay
+    rawInput[3], // challenge
   ];
 
   console.log("Raw public signals from circuit:", publicSignals);
   console.log("Input array for contract:", input);
-  console.log("Input[0] (should be currentYear):", input[0]);
-  console.log("Input[4] (should be isOver18):", input[4]);
+  console.log("Input[0] (should be isOver18):", input[0]);
+  console.log("Input[4] (should be challenge):", input[4]);
 
   // Debug: Check what each public signal represents
   console.log("Public signals analysis:");
