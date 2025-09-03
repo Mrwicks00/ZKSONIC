@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         transactionHash: hash,
-        blockNumber: receipt.blockNumber,
+        blockNumber: receipt.blockNumber.toString(),
         message: "Age verification submitted successfully to blockchain",
       });
     } else {
