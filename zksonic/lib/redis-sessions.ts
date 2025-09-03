@@ -5,6 +5,18 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
+// Debug Redis connection (server-side only)
+if (typeof window === "undefined") {
+  console.log(
+    "Redis URL:",
+    process.env.UPSTASH_REDIS_REST_URL ? "Set" : "Missing"
+  );
+  console.log(
+    "Redis Token:",
+    process.env.UPSTASH_REDIS_REST_TOKEN ? "Set" : "Missing"
+  );
+}
+
 export interface VerificationSession {
   challenge: number;
   credential: any;

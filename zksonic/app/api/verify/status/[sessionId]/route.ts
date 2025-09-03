@@ -16,7 +16,16 @@ export async function GET(
     }
 
     // Get session from persistent storage
+    console.log(`Looking for session: ${sessionId}`);
     const session = await getSession(sessionId);
+    console.log(`Session found:`, !!session);
+    console.log(
+      `Session data:`,
+      session
+        ? { status: session.status, createdAt: session.createdAt }
+        : "null"
+    );
+
     if (!session) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
@@ -39,7 +48,7 @@ export async function GET(
       expiresAt: session.expiresAt,
     });
   } catch (error) {
-    console.error('Status check error:', error);
+    console.error("Status check error:", error);
     return NextResponse.json(
       { error: "Failed to get session status" },
       { status: 500 }
