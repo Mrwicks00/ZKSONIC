@@ -241,7 +241,7 @@ async function submitVerificationToBlockchain(params: VerificationSubmission) {
   console.log("Transaction submitted:", hash);
 
   // Wait for transaction receipt
-  const receipt = await walletClient.waitForTransactionReceipt({ hash });
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
   if (receipt.status === "success") {
     console.log("Verification successful, transaction confirmed");

@@ -4,7 +4,13 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
-import { createWalletClient, http, parseAbi, defineChain } from "viem";
+import {
+  createWalletClient,
+  http,
+  parseAbi,
+  defineChain,
+  createPublicClient,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { ADDRESSES } from "@/lib/addresses";
 
@@ -63,6 +69,12 @@ export async function POST(request: NextRequest) {
       transport: http(),
     });
 
+    // Create public client for balance checking and receipt waiting
+    const publicClient = createPublicClient({
+      chain: sonicTestnet,
+      transport: http(),
+    });
+
     console.log("Wallet client created for address:", account.address);
     console.log(
       "Contract address:",
@@ -75,7 +87,7 @@ export async function POST(request: NextRequest) {
     console.log("Submitting transaction...");
 
     // Check account balance first
-    const balance = await walletClient.getBalance({ address: account.address });
+    const balance = await publicClient.getBalance({ address: account.address });
     console.log("Account balance:", balance.toString(), "wei");
 
     // Submit the verification transaction
@@ -97,7 +109,7 @@ export async function POST(request: NextRequest) {
     console.log("Transaction submitted:", hash);
 
     // Wait for transaction receipt
-    const receipt = await walletClient.waitForTransactionReceipt({ hash });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
     if (receipt.status === "success") {
       console.log("Verification successful, transaction confirmed");
