@@ -36,9 +36,14 @@ export async function POST(request: NextRequest) {
     );
 
     // Get private key from environment
-    const privateKey = process.env.SONIC_PRIVATE_KEY;
+    let privateKey = process.env.SONIC_PRIVATE_KEY;
     if (!privateKey) {
       throw new Error("SONIC_PRIVATE_KEY not found in environment variables");
+    }
+
+    // Ensure private key has 0x prefix
+    if (!privateKey.startsWith("0x")) {
+      privateKey = "0x" + privateKey;
     }
 
     // Create wallet client

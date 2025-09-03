@@ -103,10 +103,9 @@ export async function POST(request: NextRequest) {
       .toString(16)
       .padStart(64, "0")}` as `0x${string}`;
 
-    // Calculate DID hash (like in working script)
-    const didHash = `0x${Buffer.from(userDid)
-      .toString("hex")
-      .padStart(64, "0")}` as `0x${string}`;
+    // Calculate DID hash using keccak256 (like in working script)
+    const { keccak256, toUtf8Bytes } = await import("ethers");
+    const didHash = keccak256(toUtf8Bytes(userDid)) as `0x${string}`;
 
     console.log("Circuit inputs prepared for client-side proof generation");
 
