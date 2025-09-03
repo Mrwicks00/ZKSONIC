@@ -481,83 +481,46 @@ export default function ZKSonicApp() {
       setVerificationStatus("verifying");
       setVerificationData(null);
 
-      // Send session data to server for proof generation (server will retrieve credential from Redis)
-      console.log("Sending session data to server for proof generation...");
-      const response = await fetch("/api/generate-proof", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId,
-          challenge: challengeNumber,
-          userDid: storedUserDid || userDID,
-        }),
+      // Generate proof on client-side using the new approach
+      console.log("Generating proof on client-side...");
+      const { a, b, c, input, challengeBytes32, didHash } = await generateProof(
+        sessionId,
+        challengeNumber,
+        storedUserDid || userDID
+      );
+
+      console.log("Proof generated, submitting to blockchain...");
+      setVerificationStatus("signing");
+
+      // Submit verification to blockchain
+      const submitResult = await verifyOnChain({
+        a,
+        b,
+        c,
+        input,
+        challengeBytes32,
+        didHash,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.error || "Failed to generate proof on server"
-        );
-      }
-
-      const result = await response.json();
-
-      if (result.success) {
-        console.log("Proof generated on server, submitting to blockchain...");
-        setVerificationStatus("signing");
-
-        // Submit verification to blockchain
-        const submitResponse = await fetch("/api/submit-verification", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            proof: result.proof,
-            challengeBytes32: result.challengeBytes32,
-            didHash: result.didHash,
-            sessionId,
-          }),
-        });
-
-        if (!submitResponse.ok) {
-          const submitError = await submitResponse.json();
-          throw new Error(
-            submitError.error || "Failed to submit to blockchain"
-          );
-        }
-
-        const submitResult = await submitResponse.json();
-
-        if (submitResult.success) {
-          setVerificationStatus("success");
-          setVerificationData({
-            ageVerified: true,
-            timestamp: new Date().toISOString(),
-            sessionId: sessionId,
-            transactionHash: submitResult.transactionHash,
-            blockNumber: submitResult.blockNumber,
-          });
-
-          toast({
-            title: "Verification Successful",
-            description: `Age proof verified on blockchain! Transaction: ${submitResult.transactionHash.slice(
-              0,
-              10
-            )}...`,
-          });
-        } else {
-          throw new Error(submitResult.error || "Blockchain submission failed");
-        }
-      } else {
-        setVerificationStatus("failed");
+      if (submitResult.success) {
+        setVerificationStatus("success");
         setVerificationData({
-          error: result.error || "Proof generation failed",
+          ageVerified: true,
           timestamp: new Date().toISOString(),
+          sessionId: sessionId,
+          transactionHash: submitResult.transactionHash,
+          blockNumber: submitResult.blockNumber,
         });
+
         toast({
-          title: "Verification Failed",
-          description: result.error || "Unable to generate proof",
-          variant: "destructive",
+          title: "Verification Successful",
+          description: `Age proof verified on blockchain! Transaction: ${submitResult.transactionHash?.slice(
+            0,
+            10
+          )}...`,
         });
+      } else {
+        throw new Error("Blockchain submission failed");
       }
       setScanActive(false);
     } catch (e: any) {

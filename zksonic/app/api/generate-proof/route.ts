@@ -1,3 +1,8 @@
+// Node.js runtime configuration for Vercel
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http, parseAbi } from "viem";
 import { sonicTestnet } from "viem/chains";
@@ -93,82 +98,27 @@ export async function POST(request: NextRequest) {
 
     console.log("Circuit inputs:", circuitInputs);
 
-    // Generate proof - let it run naturally
-    const startTime = Date.now();
+    // Convert challenge to bytes32 (like in working script)
+    const challengeBytes32 = `0x${challenge
+      .toString(16)
+      .padStart(64, "0")}` as `0x${string}`;
 
-    try {
-      const { proof, publicSignals } = await groth16.fullProve(
-        circuitInputs,
-        "./public/age_proof_js/age_proof.wasm",
-        "./public/age_proof_0001.zkey"
-      );
+    // Calculate DID hash (like in working script)
+    const didHash = `0x${Buffer.from(userDid)
+      .toString("hex")
+      .padStart(64, "0")}` as `0x${string}`;
 
-      const generationTime = Date.now() - startTime;
-      console.log(`Proof generated in ${generationTime}ms`);
+    console.log("Circuit inputs prepared for client-side proof generation");
 
-      // Use exportSolidityCallData like in the working script
-      const calldata = await groth16.exportSolidityCallData(
-        proof,
-        publicSignals
-      );
-      const argv = JSON.parse("[" + calldata + "]");
-
-      // Convert to proper format like in the working script
-      const a: [string, string] = [argv[0][0], argv[0][1]];
-      const b: [[string, string], [string, string]] = [
-        [argv[1][0][0], argv[1][0][1]],
-        [argv[1][1][0], argv[1][1][1]],
-      ];
-      const c: [string, string] = [argv[2][0], argv[2][1]];
-      const input: string[] = argv[3];
-
-      console.log("Proof components:", { a, b, c, input });
-      console.log("Public signals:", publicSignals);
-
-      // Check if over 18 (first public signal)
-      const isOver18 = publicSignals[0];
-      console.log("isOver18 =", isOver18);
-
-      // Prepare the proof for the smart contract
-      const formattedProof = {
-        a,
-        b,
-        c,
-        input: input.map((signal: string) => BigInt(signal)),
-      };
-
-      // Convert challenge to bytes32 (like in working script)
-      const challengeBytes32 = `0x${challenge
-        .toString(16)
-        .padStart(64, "0")}` as `0x${string}`;
-
-      // Calculate DID hash (like in working script)
-      const didHash = `0x${Buffer.from(userDid)
-        .toString("hex")
-        .padStart(64, "0")}` as `0x${string}`;
-
-      console.log("Proof formatted for contract");
-
-      return NextResponse.json({
-        success: true,
-        proof: formattedProof,
-        challengeBytes32,
-        didHash,
-        generationTime,
-        age,
-        message: "Proof generated and verified successfully",
-      });
-    } catch (proofError: any) {
-      console.error("Proof generation error:", proofError);
-      return NextResponse.json(
-        {
-          error: "Proof generation failed",
-          details: proofError.message,
-          generationTime: Date.now() - startTime,
-        },
-        { status: 500 }
-      );
-    }
+    return NextResponse.json({
+      success: true,
+      circuitInputs,
+      challengeBytes32,
+      didHash,
+      age,
+      message:
+        "Circuit inputs generated successfully for client-side proof generation",
+    });
   } catch (error: any) {
     console.error("Server proof generation error:", error);
     return NextResponse.json(

@@ -1,3 +1,8 @@
+// Node.js runtime configuration for Vercel
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, updateSession } from "@/lib/redis-sessions";
 import { generateProofUtil, verifyProofUtil } from "@/lib/proof-utils";

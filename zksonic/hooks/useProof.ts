@@ -1,5 +1,5 @@
-// hooks/useProof.ts
 import { todayUTC } from "@/lib/utils";
+import { groth16 } from "snarkjs";
 
 export type GenerateProofResp = {
   a: [string, string];
@@ -9,49 +9,96 @@ export type GenerateProofResp = {
   publicSignals: string[];
 };
 
-export async function generateProof(credential: {
-  birthYear: number; 
-  birthMonth: number; 
-  birthDay: number;
-}, challenge: number) {
-  const d = todayUTC();
+export async function generateProof(
+  sessionId: string,
+  challenge: number,
+  userDid: string
+) {
+  // Get circuit inputs from server
   const res = await fetch("/api/generate-proof", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      birthYear: credential.birthYear,
-      birthMonth: credential.birthMonth,
-      birthDay: credential.birthDay,
-      currentYear: d.year,
-      currentMonth: d.month,
-      currentDay: d.day,
-      challenge
-    })
+      sessionId,
+      challenge,
+      userDid,
+    }),
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<GenerateProofResp>;
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Server error: ${errorText}`);
+  }
+
+  const { circuitInputs, challengeBytes32, didHash } = await res.json();
+
+  const startTime = Date.now();
+
+  // Generate proof on client-side
+  const { proof, publicSignals } = await groth16.fullProve(
+    circuitInputs,
+    "/age_proof_js/age_proof.wasm",
+    "/age_proof_0001.zkey"
+  );
+
+  const generationTime = Date.now() - startTime;
+  console.log(`Proof generated in ${generationTime}ms`);
+
+  // Format proof for smart contract
+  const calldata = await groth16.exportSolidityCallData(proof, publicSignals);
+  const argv = JSON.parse("[" + calldata + "]");
+
+  const a: [string, string] = [argv[0][0], argv[0][1]];
+  const b: [[string, string], [string, string]] = [
+    [argv[1][0][0], argv[1][0][1]],
+    [argv[1][1][0], argv[1][1][1]],
+  ];
+  const c: [string, string] = [argv[2][0], argv[2][1]];
+  const input: string[] = argv[3];
+
+  return {
+    a,
+    b,
+    c,
+    input,
+    publicSignals,
+    challengeBytes32,
+    didHash,
+  };
 }
 
 export async function verifyOnChain(params: {
-  a: any; 
-  b: any; 
-  c: any; 
-  input: any; 
-  challenge: number; 
-  did: string;
+  a: any;
+  b: any;
+  c: any;
+  input: any;
+  challengeBytes32: string;
+  didHash: string;
 }) {
-  const res = await fetch("/api/verify-proof", {
+  const res = await fetch("/api/submit-verification", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      a: params.a, 
-      b: params.b, 
-      c: params.c, 
-      input: params.input,
-      challengeNumber: params.challenge,
-      did: params.did
-    })
+      proof: {
+        a: params.a,
+        b: params.b,
+        c: params.c,
+        input: params.input,
+      },
+      challengeBytes32: params.challengeBytes32,
+      didHash: params.didHash,
+      sessionId: "temp", // This will be updated by the calling function
+    }),
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{ ok: boolean; txHash?: string }>;
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Verification error: ${errorText}`);
+  }
+
+  return res.json() as Promise<{
+    success: boolean;
+    transactionHash?: string;
+    blockNumber?: number;
+  }>;
 }

@@ -1,11 +1,16 @@
+// Node.js runtime configuration for Vercel
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
 import { NextRequest, NextResponse } from "next/server";
 import { createWalletClient, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { sonicTestnet } from "viem/chains";
 
-// AgeGate ABI
+// AgeGate ABI - Fixed parameter types to match contract
 const AgeGateABI = parseAbi([
-  "function verifyAge(uint256[2] memory _pA, uint256[2][2] memory _pB, uint256[2] memory _pC, uint256[2] memory _pubSignals, bytes32 _challenge, bytes32 _didHash) public",
+  "function verifyAge(uint256[2] a, uint256[2][2] b, uint256[2] c, uint256[5] input, bytes32 challenge, bytes32 didHash) external returns (bool)",
 ]);
 
 interface VerificationSubmission {
