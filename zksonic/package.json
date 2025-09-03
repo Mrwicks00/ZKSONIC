@@ -41,6 +41,7 @@
     "@remix-run/react": "latest",
     "@sveltejs/kit": "latest",
     "@tanstack/react-query": "^5.85.8",
+    "@upstash/redis": "^1.35.3",
     "@vercel/analytics": "latest",
     "@yudiel/react-qr-scanner": "^2.3.1",
     "autoprefixer": "^10.4.20",

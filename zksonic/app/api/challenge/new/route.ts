@@ -1,15 +1,13 @@
-// app/api/challenge/new/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { verificationSessions } from "@/lib/sessions";
+import { createSession } from "@/lib/redis-sessions";
 
 export async function POST(request: NextRequest) {
   try {
-    const challenge = Math.floor(Math.random() * 1e9); // uint
+    const challenge = Math.floor(Math.random() * 1e9);
     const sessionId = `session_${Date.now()}_${Math.random()
       .toString(36)
       .substr(2, 9)}`;
 
-    // Get credential data from request body
     const body = await request.json();
     const { credential } = body;
 
@@ -20,18 +18,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Store session data (credential + challenge)
-    const sessionData = {
+    // Create session in persistent storage
+    await createSession(sessionId, {
       challenge,
       credential,
       status: "pending",
       createdAt: Date.now(),
-      expiresAt: Date.now() + 180 * 1000, // 3 minutes
-    };
+    });
 
-    verificationSessions.set(sessionId, sessionData);
+    console.log(`Created session: ${sessionId}`);
 
-    // QR only contains challenge and session ID
     const qrData = JSON.stringify({
       t: "age18",
       challenge,
@@ -42,14 +38,13 @@ export async function POST(request: NextRequest) {
       challenge,
       sessionId,
       qrData,
-      expiresInSec: 180,
+      expiresInSec: 300, // 5 minutes
     });
   } catch (error) {
+    console.error("Challenge creation error:", error);
     return NextResponse.json(
       { error: "Failed to generate challenge" },
       { status: 500 }
     );
   }
 }
-
-// Sessions are now imported from @/lib/sessions

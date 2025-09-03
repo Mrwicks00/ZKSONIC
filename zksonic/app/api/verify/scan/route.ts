@@ -1,12 +1,15 @@
-// app/api/verify/scan/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { verificationSessions } from "@/lib/sessions";
+import { getSession, updateSession } from "@/lib/redis-sessions";
 import { generateProofUtil, verifyProofUtil } from "@/lib/proof-utils";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { sessionId, userDid } = body;
+
+    console.log(
+      `Processing scan for session: ${sessionId}, userDid: ${userDid}`
+    );
 
     if (!sessionId || !userDid) {
       return NextResponse.json(
@@ -15,8 +18,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get session data
-    const session = verificationSessions.get(sessionId);
+    // Get session from persistent storage
+    const session = await getSession(sessionId);
+    console.log(`Session found:`, !!session);
+
     if (!session) {
       return NextResponse.json(
         { error: "Invalid or expired session" },
@@ -26,60 +31,98 @@ export async function POST(request: NextRequest) {
 
     // Check if session is expired
     if (Date.now() > session.expiresAt) {
-      verificationSessions.delete(sessionId);
       return NextResponse.json({ error: "Session expired" }, { status: 410 });
     }
 
-    // Update session with user DID
-    session.userDid = userDid;
-    session.status = "processing";
-    session.scannedAt = Date.now();
+    // Check if already processing/completed
+    if (session.status !== "pending") {
+      return NextResponse.json({
+        success: session.status === "success",
+        status: session.status,
+        result: session.result,
+        error: session.error,
+        sessionId,
+      });
+    }
+
+    // Update session status
+    await updateSession(sessionId, {
+      userDid,
+      status: "processing",
+      scannedAt: Date.now(),
+    });
 
     // Process verification on server side
     try {
-      // Generate proof using stored credential with timeout
+      console.log("Generating proof...");
       const proof = await Promise.race([
         generateProofUtil(session.credential, session.challenge),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Proof generation timeout")), 30000)
         ),
-      ]) as any;
+      ]);
 
-      // Verify on chain with timeout
+      console.log("Verifying proof...");
       const verifyResult = await Promise.race([
         verifyProofUtil(proof, session.challenge, userDid),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Verification timeout")), 45000)
         ),
-      ]) as any;
+      ]);
 
-      // Update session with result
-      session.status = verifyResult.ok ? "success" : "failed";
-      session.result = verifyResult;
-      session.completedAt = Date.now();
+      // Update session with final result
+      await updateSession(sessionId, {
+        status: (verifyResult as any).ok ? "success" : "failed",
+        result: verifyResult,
+        error: !(verifyResult as any).ok ? "Verification failed" : undefined,
+        completedAt: Date.now(),
+      });
 
-      return NextResponse.json({
-        success: true,
-        status: session.status,
+      const response = NextResponse.json({
+        success: (verifyResult as any).ok,
+        status: (verifyResult as any).ok ? "success" : "failed",
         result: verifyResult,
         sessionId,
       });
-    } catch (error: any) {
-      session.status = "failed";
-      session.error = error?.message || "Unknown error";
-      session.completedAt = Date.now();
 
-      return NextResponse.json({
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      response.headers.set(
+        "Access-Control-Allow-Methods",
+        "POST, GET, OPTIONS"
+      );
+      return response;
+    } catch (error: any) {
+      console.error("Verification error:", error);
+
+      await updateSession(sessionId, {
+        status: "failed",
+        error: error?.message || "Unknown error",
+        completedAt: Date.now(),
+      });
+
+      const response = NextResponse.json({
         success: false,
         status: "failed",
         error: error?.message || "Unknown error",
         sessionId,
       });
+
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      response.headers.set(
+        "Access-Control-Allow-Methods",
+        "POST, GET, OPTIONS"
+      );
+      return response;
     }
   } catch (error: any) {
-    return NextResponse.json(
+    console.error("Scan processing error:", error);
+    const response = NextResponse.json(
       { error: error?.message || "Failed to process verification" },
       { status: 500 }
     );
+
+    response.headers.set("Access-Control-Allow-Origin", "*");
+    response.headers.set("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+    return response;
   }
 }

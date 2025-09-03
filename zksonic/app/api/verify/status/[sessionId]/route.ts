@@ -1,6 +1,5 @@
-// app/api/verify/status/[sessionId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { verificationSessions } from "@/lib/sessions";
+import { getSession } from "@/lib/redis-sessions";
 
 export async function GET(
   request: NextRequest,
@@ -16,15 +15,14 @@ export async function GET(
       );
     }
 
-    // Get session data
-    const session = verificationSessions.get(sessionId);
+    // Get session from persistent storage
+    const session = await getSession(sessionId);
     if (!session) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 
     // Check if session is expired
     if (Date.now() > session.expiresAt) {
-      verificationSessions.delete(sessionId);
       return NextResponse.json({ error: "Session expired" }, { status: 410 });
     }
 
@@ -41,6 +39,7 @@ export async function GET(
       expiresAt: session.expiresAt,
     });
   } catch (error) {
+    console.error('Status check error:', error);
     return NextResponse.json(
       { error: "Failed to get session status" },
       { status: 500 }
