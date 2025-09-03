@@ -6,25 +6,27 @@ import { groth16 } from "snarkjs";
 // ==== CHANGE THESE IF YOUR LAYOUT DIFFERS ====
 const DEPLOYMENTS_JSON = "deployments/sonicTestnet-*.json"; // we'll auto-pick the latest
 const WASM = "public/age_proof_js/age_proof.wasm";
-const ZKEY = "public/age_proof_0001.zkey";  
+const ZKEY = "public/age_proof_0001.zkey";
 
 // AgeGate ABI (properly formatted with correct types)
 const AGEGATE_ABI = [
-  "function verifyAge(uint256[2] calldata a, uint256[2][2] calldata b, uint256[2] calldata c, uint256[5] calldata input, bytes32 challenge, bytes32 subjectDidHash) external returns (bool)"
+  "function verifyAge(uint256[2] calldata a, uint256[2][2] calldata b, uint256[2] calldata c, uint256[5] calldata input, bytes32 challenge, bytes32 subjectDidHash) external returns (bool)",
 ];
 
 // Verifier ABI (properly formatted)
 const VERIFIER_ABI = [
-  "function verifyProof(uint256[2] memory a, uint256[2][2] memory b, uint256[2] memory c, uint256[5] memory input) external view returns (bool)"
+  "function verifyProof(uint256[2] memory a, uint256[2][2] memory b, uint256[2] memory c, uint256[5] memory input) external view returns (bool)",
 ];
 
 function latestDeploymentFile(): string {
   const dir = "deployments";
-  const files = fs.readdirSync(dir)
-    .filter(f => f.startsWith("sonicTestnet-") && f.endsWith(".json"))
-    .map(f => path.join(dir, f))
-    .sort((a,b) => fs.statSync(a).mtimeMs - fs.statSync(b).mtimeMs);
-  if (files.length === 0) throw new Error("No sonicTestnet deployments JSON found");
+  const files = fs
+    .readdirSync(dir)
+    .filter((f) => f.startsWith("sonicTestnet-") && f.endsWith(".json"))
+    .map((f) => path.join(dir, f))
+    .sort((a, b) => fs.statSync(a).mtimeMs - fs.statSync(b).mtimeMs);
+  if (files.length === 0)
+    throw new Error("No sonicTestnet deployments JSON found");
   return files[files.length - 1];
 }
 
@@ -65,19 +67,23 @@ async function runCase(
   did: string
 ) {
   console.log(`\n=== ${label} ===`);
-  
+
   try {
     const { a, b, c, input, publicSignals } = await prove(proofInputs);
 
     // sanity: last publicSignals element should be isOver18 (1/0)
-    
+
     const isOver18 = publicSignals[0];
     console.log("publicSignals:", publicSignals, "=> isOver18 =", isOver18);
 
     // Connect contracts
     const signer = (await ethers.getSigners())[0];
     const ageGate = new ethers.Contract(contracts.ageGate, AGEGATE_ABI, signer);
-    const verifier = new ethers.Contract(contracts.verifier, VERIFIER_ABI, signer);
+    const verifier = new ethers.Contract(
+      contracts.verifier,
+      VERIFIER_ABI,
+      signer
+    );
 
     // Prepare extra params for AgeGate
     const challenge = toBytes32FromNumber(challengeNum); // must match input[3]
@@ -90,7 +96,10 @@ async function runCase(
     // Raw verifier (view) - test first
     try {
       const okRaw: boolean = await verifier.verifyProof(a, b, c, input);
-      console.log("Groth16Verifier.verifyProof:", okRaw ? "✅ valid" : "❌ invalid");
+      console.log(
+        "Groth16Verifier.verifyProof:",
+        okRaw ? "✅ valid" : "❌ invalid"
+      );
     } catch (error) {
       console.error("Error calling verifyProof:", error);
       return;
@@ -98,19 +107,27 @@ async function runCase(
 
     // AgeGate wrapper (returns bool, does extra checks and emits event)
     try {
-      
+      // First, simulate the call to get the result
+      const okGate: boolean = await ageGate.verifyAge.staticCall(
+        a,
+        b,
+        c,
+        input,
+        challenge,
+        didHash
+      );
+      console.log(
+        "AgeGate.verifyAge (staticCall):",
+        okGate ? "✅ PASS (over 18)" : "❌ FAIL (under 18)"
+      );
+
       // If you want to actually execute the transaction (not just simulate):
       const tx = await ageGate.verifyAge(a, b, c, input, challenge, didHash);
       const receipt = await tx.wait();
       console.log("Transaction executed, gas used:", receipt.gasUsed);
-      
-      const okGate: boolean = await ageGate.verifyAge(a, b, c, input, challenge, didHash);
-      console.log("AgeGate.verifyAge:", okGate ? "✅ PASS (over 18)" : "❌ FAIL (under 18)");
-      
     } catch (error) {
       console.error("Error calling AgeGate.verifyAge:", error);
     }
-
   } catch (error) {
     console.error(`Error in ${label}:`, error);
   }
@@ -143,7 +160,7 @@ async function main() {
       currentYear: 2025,
       currentMonth: 9,
       currentDay: 1,
-      challenge
+      challenge,
     },
     challenge,
     "did:zksonic:demo-alice"
@@ -160,14 +177,19 @@ async function main() {
       currentYear: 2025,
       currentMonth: 9,
       currentDay: 1,
-      challenge
+      challenge,
     },
     challenge,
     "did:zksonic:demo-bob"
   );
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    console.log("\n=== Script completed successfully ===");
+    process.exit(0);
+  })
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });

@@ -54,20 +54,37 @@ export async function generateProof(
     [argv[1][1][0], argv[1][1][1]],
   ];
   const c: [string, string] = [argv[2][0], argv[2][1]];
-  const input: string[] = argv[3];
+
+  // Reorder public signals to match smart contract expectation
+  // Circuit outputs: [isOver18, currentYear, currentMonth, currentDay, challenge]
+  // Smart contract expects: [currentYear, currentMonth, currentDay, challenge, isOver18]
+  const rawInput: string[] = argv[3];
+  const input: string[] = [
+    rawInput[1], // currentYear
+    rawInput[2], // currentMonth
+    rawInput[3], // currentDay
+    rawInput[4], // challenge
+    rawInput[0], // isOver18 (moved to position 4)
+  ];
 
   console.log("Raw public signals from circuit:", publicSignals);
   console.log("Input array for contract:", input);
-  console.log("Input[0] (should be isOver18):", input[0]);
-  console.log("Input[4] (should be challenge):", input[4]);
+  console.log("Input[0] (should be currentYear):", input[0]);
+  console.log("Input[4] (should be isOver18):", input[4]);
 
   // Debug: Check what each public signal represents
   console.log("Public signals analysis:");
-  console.log("  [0] =", publicSignals[0], "(should be isOver18)");
-  console.log("  [1] =", publicSignals[1], "(should be currentYear)");
-  console.log("  [2] =", publicSignals[2], "(should be currentMonth)");
-  console.log("  [3] =", publicSignals[3], "(should be currentDay)");
-  console.log("  [4] =", publicSignals[4], "(should be challenge)");
+  console.log("  [0] =", publicSignals[0], "(isOver18 from circuit)");
+  console.log("  [1] =", publicSignals[1], "(currentYear from circuit)");
+  console.log("  [2] =", publicSignals[2], "(currentMonth from circuit)");
+  console.log("  [3] =", publicSignals[3], "(currentDay from circuit)");
+  console.log("  [4] =", publicSignals[4], "(challenge from circuit)");
+  console.log("Reordered for contract:");
+  console.log("  [0] =", input[0], "(currentYear for contract)");
+  console.log("  [1] =", input[1], "(currentMonth for contract)");
+  console.log("  [2] =", input[2], "(currentDay for contract)");
+  console.log("  [3] =", input[3], "(challenge for contract)");
+  console.log("  [4] =", input[4], "(isOver18 for contract)");
 
   return {
     a,
