@@ -64,7 +64,19 @@ export async function POST(request: NextRequest) {
     });
 
     console.log("Wallet client created for address:", account.address);
+    console.log(
+      "Contract address:",
+      process.env.AGEGATE_ADDRESS ||
+        "0xcBFb34c4BF995448262C7A7eb3D1Ae5Eb2Fd4342"
+    );
+    console.log("Challenge bytes32:", challengeBytes32);
+    console.log("DID hash:", didHash);
+    console.log("Input array:", input);
     console.log("Submitting transaction...");
+
+    // Check account balance first
+    const balance = await walletClient.getBalance({ address: account.address });
+    console.log("Account balance:", balance.toString(), "wei");
 
     // Submit the verification transaction
     const hash = await walletClient.writeContract({
@@ -101,10 +113,23 @@ export async function POST(request: NextRequest) {
     }
   } catch (error: any) {
     console.error("Blockchain submission error:", error);
+
+    // Log more specific error details
+    if (error.code) {
+      console.error("Error code:", error.code);
+    }
+    if (error.shortMessage) {
+      console.error("Short message:", error.shortMessage);
+    }
+    if (error.details) {
+      console.error("Error details:", error.details);
+    }
+
     return NextResponse.json(
       {
         error: "Failed to submit verification to blockchain",
-        details: error.message,
+        details: error.message || error.shortMessage || "Unknown error",
+        code: error.code,
       },
       { status: 500 }
     );
