@@ -1,6 +1,7 @@
 // app/api/verify/scan/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { verificationSessions } from "@/lib/sessions";
+import { generateProofUtil, verifyProofUtil } from "@/lib/proof-utils";
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,56 +37,21 @@ export async function POST(request: NextRequest) {
 
     // Process verification on server side
     try {
-      const baseUrl =
-        process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-
       // Generate proof using stored credential with timeout
-      const proofResponse = (await Promise.race([
-        fetch(`${baseUrl}/api/generate-proof`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            credential: session.credential,
-            challenge: session.challenge,
-          }),
-        }),
+      const proof = await Promise.race([
+        generateProofUtil(session.credential, session.challenge),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Proof generation timeout")), 30000)
         ),
-      ])) as Response;
-
-      if (!proofResponse.ok) {
-        const errorText = await proofResponse.text();
-        throw new Error(`Failed to generate proof: ${errorText}`);
-      }
-
-      const proof = await proofResponse.json();
+      ]) as any;
 
       // Verify on chain with timeout
-      const verifyResponse = (await Promise.race([
-        fetch(`${baseUrl}/api/verify-proof`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            a: proof.a,
-            b: proof.b,
-            c: proof.c,
-            input: proof.input,
-            challenge: session.challenge,
-            did: userDid,
-          }),
-        }),
+      const verifyResult = await Promise.race([
+        verifyProofUtil(proof, session.challenge, userDid),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Verification timeout")), 45000)
         ),
-      ])) as Response;
-
-      if (!verifyResponse.ok) {
-        const errorText = await verifyResponse.text();
-        throw new Error(`Failed to verify proof: ${errorText}`);
-      }
-
-      const verifyResult = await verifyResponse.json();
+      ]) as any;
 
       // Update session with result
       session.status = verifyResult.ok ? "success" : "failed";
