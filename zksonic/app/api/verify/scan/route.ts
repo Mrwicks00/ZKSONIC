@@ -13,6 +13,7 @@ import {
   createPublicClient,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { ethers } from "ethers";
 import { ADDRESSES } from "@/lib/addresses";
 
 export async function POST(request: NextRequest) {
@@ -229,10 +230,13 @@ async function submitVerificationToBlockchain(params: VerificationSubmission) {
     abi: AgeGateABI,
     functionName: "verifyAge",
     args: [
-      a,
-      b,
-      c,
-      input,
+      a.map((x) => BigInt(x)) as [bigint, bigint],
+      b.map((row) => row.map((x) => BigInt(x))) as [
+        [bigint, bigint],
+        [bigint, bigint]
+      ],
+      c.map((x) => BigInt(x)) as [bigint, bigint],
+      input.map((x) => BigInt(x)) as [bigint, bigint, bigint, bigint, bigint],
       challengeBytes32 as `0x${string}`,
       didHash as `0x${string}`,
     ],
@@ -246,11 +250,39 @@ async function submitVerificationToBlockchain(params: VerificationSubmission) {
   if (receipt.status === "success") {
     console.log("Verification successful, transaction confirmed");
 
+    // Parse the AgeVerified event to get the actual result
+    const iface = new ethers.Interface([
+      "event AgeVerified(address indexed caller, bytes32 indexed challenge, bytes32 indexed subjectDidHash, bool isOver18)",
+    ]);
+
+    let actualResult = false;
+    for (const log of receipt.logs) {
+      try {
+        const parsed = iface.parseLog(log);
+        if (parsed?.name === "AgeVerified") {
+          actualResult = parsed.args.isOver18;
+          console.log("AgeVerified event found:", {
+            caller: parsed.args.caller,
+            challenge: parsed.args.challenge,
+            subjectDidHash: parsed.args.subjectDidHash,
+            isOver18: actualResult,
+          });
+        }
+      } catch (error) {
+        // Log might not be from our contract, continue
+      }
+    }
+
+    console.log("Actual verification result from event:", actualResult);
+
     return {
       success: true,
       transactionHash: hash,
       blockNumber: receipt.blockNumber.toString(),
-      message: "Age verification submitted successfully to blockchain",
+      isOver18: actualResult, // The real result from the event
+      message: actualResult
+        ? "Age verification passed (over 18)"
+        : "Age verification failed (under 18)",
     };
   } else {
     throw new Error("Transaction failed");

@@ -520,22 +520,42 @@ export default function ZKSonicApp() {
       const result = await submitResult.json();
 
       if (result.success) {
-        setVerificationStatus("success");
-        setVerificationData({
-          ageVerified: true,
-          timestamp: new Date().toISOString(),
-          sessionId: sessionId,
-          transactionHash: result.result?.transactionHash,
-          blockNumber: result.result?.blockNumber,
-        });
+        const isOver18 = result.result?.isOver18;
+        
+        if (isOver18) {
+          setVerificationStatus("success");
+          setVerificationData({
+            ageVerified: true,
+            timestamp: new Date().toISOString(),
+            sessionId: sessionId,
+            transactionHash: result.result?.transactionHash,
+            blockNumber: result.result?.blockNumber,
+          });
 
-        toast({
-          title: "Verification Successful",
-          description: `Age proof verified on blockchain! Transaction: ${result.result?.transactionHash?.slice(
-            0,
-            10
-          )}...`,
-        });
+          toast({
+            title: "Verification Successful",
+            description: `Age proof verified on blockchain! Transaction: ${result.result?.transactionHash?.slice(
+              0,
+              10
+            )}...`,
+          });
+        } else {
+          setVerificationStatus("failed");
+          setVerificationData({
+            ageVerified: false,
+            timestamp: new Date().toISOString(),
+            sessionId: sessionId,
+            transactionHash: result.result?.transactionHash,
+            blockNumber: result.result?.blockNumber,
+            error: "Age verification failed - user is under 18",
+          });
+
+          toast({
+            title: "Verification Failed",
+            description: "Age verification failed - user is under 18",
+            variant: "destructive",
+          });
+        }
       } else {
         throw new Error("Blockchain submission failed");
       }
@@ -745,7 +765,7 @@ export default function ZKSonicApp() {
               Verification Successful!
             </h3>
             <p className="text-muted-foreground mb-4">
-              Age proof has been successfully verified
+              Age proof has been successfully verified - User is 18+
             </p>
             {verificationData && (
               <div className="bg-muted/50 rounded-lg p-4 border border-border text-left">
@@ -798,7 +818,9 @@ export default function ZKSonicApp() {
               Verification Failed
             </h3>
             <p className="text-muted-foreground mb-4">
-              Unable to verify the submitted proof
+              {verificationData?.ageVerified === false 
+                ? "Age verification failed - User is under 18" 
+                : "Unable to verify the submitted proof"}
             </p>
             {verificationData && (
               <div className="bg-muted/50 rounded-lg p-4 border border-border text-left">
@@ -806,6 +828,12 @@ export default function ZKSonicApp() {
                   Error Details
                 </h4>
                 <div className="space-y-1 text-xs text-muted-foreground">
+                  {verificationData.ageVerified !== undefined && (
+                    <p>
+                      <span className="font-medium">Age Verified:</span>{" "}
+                      {verificationData.ageVerified ? "18+" : "Under 18"}
+                    </p>
+                  )}
                   <p>
                     <span className="font-medium">Error:</span>{" "}
                     {verificationData.error}
@@ -814,6 +842,17 @@ export default function ZKSonicApp() {
                     <span className="font-medium">Timestamp:</span>{" "}
                     {new Date(verificationData.timestamp).toLocaleString()}
                   </p>
+                  {verificationData.transactionHash && (
+                    <p>
+                      <span className="font-medium">Transaction:</span>{" "}
+                      <button
+                        onClick={() => copyToClipboard(verificationData.transactionHash, "Transaction Hash")}
+                        className="text-blue-400 hover:text-blue-300 underline"
+                      >
+                        {truncateAddress(verificationData.transactionHash)}
+                      </button>
+                    </p>
+                  )}
                 </div>
               </div>
             )}
