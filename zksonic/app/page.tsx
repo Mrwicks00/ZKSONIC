@@ -489,32 +489,49 @@ export default function ZKSonicApp() {
         storedUserDid || userDID
       );
 
-      console.log("Proof generated, submitting to blockchain...");
+      console.log("Proof generated, submitting to server...");
       setVerificationStatus("signing");
 
-      // Submit verification to blockchain
-      const submitResult = await verifyOnChain({
-        a,
-        b,
-        c,
-        input,
-        challengeBytes32,
-        didHash,
+      // Submit proof to server for blockchain submission
+      const submitResult = await fetch("/api/verify/scan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          userDid: storedUserDid || userDID,
+          proof: {
+            a,
+            b,
+            c,
+            input,
+            challengeBytes32,
+            didHash,
+          },
+        }),
       });
 
-      if (submitResult.success) {
+      if (!submitResult.ok) {
+        const errorData = await submitResult.json();
+        throw new Error(
+          `Verification failed: ${errorData.error || "Unknown error"}`
+        );
+      }
+
+      const result = await submitResult.json();
+
+      if (result.success) {
         setVerificationStatus("success");
         setVerificationData({
           ageVerified: true,
           timestamp: new Date().toISOString(),
           sessionId: sessionId,
-          transactionHash: submitResult.transactionHash,
-          blockNumber: submitResult.blockNumber,
+          transactionHash: result.result?.transactionHash,
+          blockNumber: result.result?.blockNumber,
         });
 
         toast({
           title: "Verification Successful",
-          description: `Age proof verified on blockchain! Transaction: ${submitResult.transactionHash?.slice(
+          description: `Age proof verified on blockchain! Transaction: ${result.result?.transactionHash?.slice(
             0,
             10
           )}...`,

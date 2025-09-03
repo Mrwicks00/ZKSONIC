@@ -99,7 +99,7 @@ async function runCase(
     // AgeGate wrapper (returns bool, does extra checks and emits event)
     try {
       const okGate: boolean = await ageGate.verifyAge.staticCall(a, b, c, input, challenge, didHash);
-      console.log("AgeGate.verifyAge (static call):", okGate ? "✅ PASS (over 18)" : "❌ FAIL (under 18)");
+      console.log("AgeGate.verifyAge:", okGate ? "✅ PASS (over 18)" : "❌ FAIL (under 18)");
       
       // If you want to actually execute the transaction (not just simulate):
       // const tx = await ageGate.verifyAge(a, b, c, input, challenge, didHash);

@@ -56,6 +56,11 @@ export async function generateProof(
   const c: [string, string] = [argv[2][0], argv[2][1]];
   const input: string[] = argv[3];
 
+  console.log("Raw public signals from circuit:", publicSignals);
+  console.log("Input array for contract:", input);
+  console.log("Input[0] (should be isOver18):", input[0]);
+  console.log("Input[4] (should be challenge):", input[4]);
+
   return {
     a,
     b,
@@ -79,15 +84,12 @@ export async function verifyOnChain(params: {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      proof: {
-        a: params.a,
-        b: params.b,
-        c: params.c,
-        input: params.input,
-      },
+      a: params.a,
+      b: params.b,
+      c: params.c,
+      input: params.input,
       challengeBytes32: params.challengeBytes32,
       didHash: params.didHash,
-      sessionId: "temp", // This will be updated by the calling function
     }),
   });
 

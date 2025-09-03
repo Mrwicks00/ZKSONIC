@@ -4,36 +4,30 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
-import { createWalletClient, http, parseAbi } from "viem";
+import { createWalletClient, http, parseAbi, defineChain } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { sonicTestnet } from "viem/chains";
+import { ADDRESSES } from "@/lib/addresses";
 
-// AgeGate ABI - Fixed parameter types to match contract
+// AgeGate ABI - Exact match to deployed contract
 const AgeGateABI = parseAbi([
-  "function verifyAge(uint256[2] a, uint256[2][2] b, uint256[2] c, uint256[5] input, bytes32 challenge, bytes32 didHash) external returns (bool)",
+  "function verifyAge(uint256[2] calldata a, uint256[2][2] calldata b, uint256[2] calldata c, uint256[5] calldata input, bytes32 challenge, bytes32 subjectDidHash) external returns (bool)",
 ]);
 
 interface VerificationSubmission {
-  proof: {
-    a: [string, string];
-    b: [[string, string], [string, string]];
-    c: [string, string];
-    input: bigint[];
-  };
+  a: [string, string];
+  b: [[string, string], [string, string]];
+  c: [string, string];
+  input: string[]; // This is now hex strings from exportSolidityCallData
   challengeBytes32: string;
   didHash: string;
-  sessionId: string;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: VerificationSubmission = await request.json();
-    const { proof, challengeBytes32, didHash, sessionId } = body;
+    const { a, b, c, input, challengeBytes32, didHash } = body;
 
-    console.log(
-      "Submitting verification to blockchain for session:",
-      sessionId
-    );
+    console.log("Submitting verification to blockchain");
 
     // Get private key from environment
     let privateKey = process.env.SONIC_PRIVATE_KEY;
@@ -46,6 +40,21 @@ export async function POST(request: NextRequest) {
       privateKey = "0x" + privateKey;
     }
 
+    // Create custom chain configuration (matching our addresses.ts)
+    const sonicTestnet = defineChain({
+      id: ADDRESSES.sonicTestnet.chainId,
+      name: "Sonic Testnet",
+      nativeCurrency: { name: "Sonic", symbol: "S", decimals: 18 },
+      rpcUrls: {
+        default: { http: [ADDRESSES.sonicTestnet.rpcUrl] },
+        public: { http: [ADDRESSES.sonicTestnet.rpcUrl] },
+      },
+      blockExplorers: {
+        default: { name: "SonicScan", url: "https://testnet.sonicscan.org" },
+      },
+      testnet: true,
+    });
+
     // Create wallet client
     const account = privateKeyToAccount(privateKey as `0x${string}`);
     const walletClient = createWalletClient({
@@ -54,18 +63,20 @@ export async function POST(request: NextRequest) {
       transport: http(),
     });
 
-    console.log("Wallet client created, submitting transaction...");
+    console.log("Wallet client created for address:", account.address);
+    console.log("Submitting transaction...");
 
     // Submit the verification transaction
     const hash = await walletClient.writeContract({
-      address: "0xcBFb34c4BF995448262C7A7eb3D1Ae5Eb2Fd4342" as `0x${string}`, // AgeGate contract address
+      address: (process.env.AGEGATE_ADDRESS ||
+        "0xcBFb34c4BF995448262C7A7eb3D1Ae5Eb2Fd4342") as `0x${string}`,
       abi: AgeGateABI,
       functionName: "verifyAge",
       args: [
-        proof.a,
-        proof.b,
-        proof.c,
-        proof.input,
+        a,
+        b,
+        c,
+        input,
         challengeBytes32 as `0x${string}`,
         didHash as `0x${string}`,
       ],

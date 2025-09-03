@@ -69,25 +69,43 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      console.log("Preparing verification data...");
-      const verifyResult = await Promise.race([
-        verifyProofUtil(proof, session.challenge, userDid),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Verification timeout")), 10000)
-        ),
-      ]);
+      console.log("Received client-generated proof, submitting to blockchain...");
 
-      // Update session with verification data for client-side contract interaction
+      // Submit the verification transaction to the blockchain
+      const submitResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/submit-verification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          a: proof.a,
+          b: proof.b,
+          c: proof.c,
+          input: proof.input,
+          challengeBytes32: proof.challengeBytes32,
+          didHash: proof.didHash,
+        }),
+      });
+
+      if (!submitResponse.ok) {
+        const errorData = await submitResponse.json();
+        throw new Error(`Blockchain submission failed: ${errorData.error || 'Unknown error'}`);
+      }
+
+      const submitResult = await submitResponse.json();
+      console.log("Verification submitted successfully:", submitResult);
+
+      // Update session with success
       await updateSession(sessionId, {
-        status: "pending_signature",
-        verificationData: verifyResult,
+        status: "success",
+        result: submitResult,
         completedAt: Date.now(),
       });
 
       const response = NextResponse.json({
         success: true,
-        status: "pending_signature",
-        verificationData: verifyResult,
+        status: "success",
+        result: submitResult,
         sessionId,
       });
 

@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     console.log("Calculated age:", age);
 
-    // Prepare inputs for the circuit
+    // Prepare inputs for the circuit (exactly like smokeVerify.ts)
     const circuitInputs = {
       birthYear: credential.birthYear,
       birthMonth: credential.birthMonth,
@@ -98,16 +98,21 @@ export async function POST(request: NextRequest) {
 
     console.log("Circuit inputs:", circuitInputs);
 
-    // Convert challenge to bytes32 (like in working script)
-    const challengeBytes32 = `0x${challenge
-      .toString(16)
-      .padStart(64, "0")}` as `0x${string}`;
+    console.log("Circuit inputs prepared for client-side proof generation");
+
+    // Convert challenge to bytes32 (exactly like working script)
+    const { toBeHex, zeroPadValue } = await import("ethers");
+    const challengeBytes32 = zeroPadValue(
+      toBeHex(challenge),
+      32
+    ) as `0x${string}`;
 
     // Calculate DID hash using keccak256 (like in working script)
     const { keccak256, toUtf8Bytes } = await import("ethers");
     const didHash = keccak256(toUtf8Bytes(userDid)) as `0x${string}`;
 
-    console.log("Circuit inputs prepared for client-side proof generation");
+    console.log("Challenge bytes32:", challengeBytes32);
+    console.log("DID hash:", didHash);
 
     return NextResponse.json({
       success: true,
