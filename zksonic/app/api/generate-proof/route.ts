@@ -4,7 +4,7 @@ import { sonicTestnet } from "viem/chains";
 import { getSession } from "@/lib/redis-sessions";
 
 // Import snarkjs with proper typing
-const snarkjs = require("snarkjs");
+import { groth16 } from "snarkjs";
 
 // Create a more robust public client
 const publicClient = createPublicClient({
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     const startTime = Date.now();
 
     try {
-      const { proof, publicSignals } = await snarkjs.fullProve(
+      const { proof, publicSignals } = await groth16.fullProve(
         circuitInputs,
         "./public/age_proof_js/age_proof.wasm",
         "./public/age_proof_0001.zkey"
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
       const verificationKey = await fetch(
         "./public/age_proof_verification_key.json"
       ).then((r) => r.json());
-      const isValid = await snarkjs.groth16.verify(
+      const isValid = await groth16.verify(
         verificationKey,
         publicSignals,
         proof
