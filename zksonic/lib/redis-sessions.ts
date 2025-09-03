@@ -31,7 +31,7 @@ export interface VerificationSession {
 }
 
 const SESSION_PREFIX = "zkproof_session:";
-const SESSION_TTL = 300; // 5 minutes
+const SESSION_TTL = 900; // 15 minutes
 
 export async function createSession(
   sessionId: string,
@@ -96,4 +96,11 @@ export async function updateSession(
 
 export async function deleteSession(sessionId: string) {
   await redis.del(`${SESSION_PREFIX}${sessionId}`);
+}
+
+export async function clearAllSessions() {
+  const keys = await redis.keys(`${SESSION_PREFIX}*`);
+  if (keys.length > 0) {
+    await redis.del(...keys);
+  }
 }

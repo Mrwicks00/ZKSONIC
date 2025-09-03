@@ -473,64 +473,89 @@ export default function ZKSonicApp() {
         throw new Error("Invalid QR payload - missing session ID");
       }
 
-      if (!payload?.credential) {
-        throw new Error("Invalid QR payload - missing credential data");
-      }
+      // Credential is now stored in Redis session, not in QR
 
       const challengeNumber: number = Number(payload.challenge);
       const sessionId = payload.sessionId;
-      const credential = payload.credential;
 
       setVerificationStatus("verifying");
       setVerificationData(null);
 
-      // Generate proof on client side
-      console.log("Generating proof on client side...");
-      const { generateClientProof } = await import("@/lib/client-proof");
-      const proof = await generateClientProof(credential, challengeNumber);
-      console.log("Proof generated successfully");
-
-      // Send proof to server for verification
-      const response = await fetch("/api/verify/scan", {
+      // Send session data to server for proof generation (server will retrieve credential from Redis)
+      console.log("Sending session data to server for proof generation...");
+      const response = await fetch("/api/generate-proof", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId,
+          challenge: challengeNumber,
           userDid: storedUserDid || userDID,
-          proof, // Include the generated proof
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to process verification");
+        throw new Error(
+          errorData.error || "Failed to generate proof on server"
+        );
       }
 
       const result = await response.json();
 
-      if (result.success && result.status === "pending_signature") {
-        // Now use Wagmi to sign and submit the transaction
+      if (result.success) {
+        console.log("Proof generated on server, submitting to blockchain...");
         setVerificationStatus("signing");
-        setVerificationData({
-          verificationData: result.verificationData,
-          sessionId: result.sessionId,
-          timestamp: new Date().toISOString(),
+
+        // Submit verification to blockchain
+        const submitResponse = await fetch("/api/submit-verification", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            proof: result.proof,
+            challengeBytes32: result.challengeBytes32,
+            didHash: result.didHash,
+            sessionId,
+          }),
         });
 
-        // Call the contract verification function
-        await handleContractVerification({
-          ...result.verificationData,
-          sessionId: result.sessionId,
-        });
+        if (!submitResponse.ok) {
+          const submitError = await submitResponse.json();
+          throw new Error(
+            submitError.error || "Failed to submit to blockchain"
+          );
+        }
+
+        const submitResult = await submitResponse.json();
+
+        if (submitResult.success) {
+          setVerificationStatus("success");
+          setVerificationData({
+            ageVerified: true,
+            timestamp: new Date().toISOString(),
+            sessionId: sessionId,
+            transactionHash: submitResult.transactionHash,
+            blockNumber: submitResult.blockNumber,
+          });
+
+          toast({
+            title: "Verification Successful",
+            description: `Age proof verified on blockchain! Transaction: ${submitResult.transactionHash.slice(
+              0,
+              10
+            )}...`,
+          });
+        } else {
+          throw new Error(submitResult.error || "Blockchain submission failed");
+        }
       } else {
         setVerificationStatus("failed");
         setVerificationData({
-          error: result.error || "Verification failed",
+          error: result.error || "Proof generation failed",
           timestamp: new Date().toISOString(),
         });
         toast({
           title: "Verification Failed",
-          description: result.error || "Unable to verify age proof",
+          description: result.error || "Unable to generate proof",
           variant: "destructive",
         });
       }

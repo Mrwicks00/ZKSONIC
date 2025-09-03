@@ -32,14 +32,14 @@ export async function POST(request: NextRequest) {
       t: "age18",
       challenge,
       sessionId,
-      credential, // Include credential for client-side proof generation
+      // Credential stored in Redis session, not in QR
     });
 
     return NextResponse.json({
       challenge,
       sessionId,
       qrData,
-      expiresInSec: 300, // 5 minutes
+      expiresInSec: 900, // 15 minutes
     });
   } catch (error) {
     console.error("Challenge creation error:", error);
