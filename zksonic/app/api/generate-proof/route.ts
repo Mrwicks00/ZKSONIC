@@ -106,39 +106,43 @@ export async function POST(request: NextRequest) {
       const generationTime = Date.now() - startTime;
       console.log(`Proof generated in ${generationTime}ms`);
 
-      // Verify the proof locally first
-      const verificationKey = await fetch(
-        "./public/age_proof_verification_key.json"
-      ).then((r) => r.json());
-      const isValid = await groth16.verify(
-        verificationKey,
-        publicSignals,
-        proof
+      // Use exportSolidityCallData like in the working script
+      const calldata = await groth16.exportSolidityCallData(
+        proof,
+        publicSignals
       );
+      const argv = JSON.parse("[" + calldata + "]");
 
-      if (!isValid) {
-        throw new Error("Generated proof is invalid");
-      }
+      // Convert to proper format like in the working script
+      const a: [string, string] = [argv[0][0], argv[0][1]];
+      const b: [[string, string], [string, string]] = [
+        [argv[1][0][0], argv[1][0][1]],
+        [argv[1][1][0], argv[1][1][1]],
+      ];
+      const c: [string, string] = [argv[2][0], argv[2][1]];
+      const input: string[] = argv[3];
 
-      console.log("Proof verified locally");
+      console.log("Proof components:", { a, b, c, input });
+      console.log("Public signals:", publicSignals);
+
+      // Check if over 18 (first public signal)
+      const isOver18 = publicSignals[0];
+      console.log("isOver18 =", isOver18);
 
       // Prepare the proof for the smart contract
       const formattedProof = {
-        a: [proof.pi_a[0], proof.pi_a[1]],
-        b: [
-          [proof.pi_b[0][1], proof.pi_b[0][0]],
-          [proof.pi_b[1][1], proof.pi_b[1][0]],
-        ],
-        c: [proof.pi_c[0], proof.pi_c[1]],
-        input: publicSignals.map((signal: string) => BigInt(signal)),
+        a,
+        b,
+        c,
+        input: input.map((signal: string) => BigInt(signal)),
       };
 
-      // Convert challenge to bytes32
+      // Convert challenge to bytes32 (like in working script)
       const challengeBytes32 = `0x${challenge
         .toString(16)
         .padStart(64, "0")}` as `0x${string}`;
 
-      // Calculate DID hash
+      // Calculate DID hash (like in working script)
       const didHash = `0x${Buffer.from(userDid)
         .toString("hex")
         .padStart(64, "0")}` as `0x${string}`;

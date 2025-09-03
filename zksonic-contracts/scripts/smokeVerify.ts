@@ -70,6 +70,7 @@ async function runCase(
     const { a, b, c, input, publicSignals } = await prove(proofInputs);
 
     // sanity: last publicSignals element should be isOver18 (1/0)
+    
     const isOver18 = publicSignals[0];
     console.log("publicSignals:", publicSignals, "=> isOver18 =", isOver18);
 
