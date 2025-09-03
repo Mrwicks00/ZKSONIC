@@ -61,6 +61,14 @@ export async function generateProof(
   console.log("Input[0] (should be isOver18):", input[0]);
   console.log("Input[4] (should be challenge):", input[4]);
 
+  // Debug: Check what each public signal represents
+  console.log("Public signals analysis:");
+  console.log("  [0] =", publicSignals[0], "(should be isOver18)");
+  console.log("  [1] =", publicSignals[1], "(should be currentYear)");
+  console.log("  [2] =", publicSignals[2], "(should be currentMonth)");
+  console.log("  [3] =", publicSignals[3], "(should be currentDay)");
+  console.log("  [4] =", publicSignals[4], "(should be challenge)");
+
   return {
     a,
     b,
