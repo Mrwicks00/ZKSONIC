@@ -54,34 +54,35 @@ export async function POST(request: NextRequest) {
 
     // Process verification on server side
     try {
-      console.log("Generating proof...");
-      const proof = await Promise.race([
-        generateProofUtil(session.credential, session.challenge),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Proof generation timeout")), 30000)
-        ),
-      ]);
+      // Get the proof from the request body (generated on client)
+      const { proof } = body;
 
-      console.log("Verifying proof...");
+      if (!proof) {
+        return NextResponse.json(
+          { error: "Proof is required" },
+          { status: 400 }
+        );
+      }
+
+      console.log("Preparing verification data...");
       const verifyResult = await Promise.race([
         verifyProofUtil(proof, session.challenge, userDid),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Verification timeout")), 45000)
+          setTimeout(() => reject(new Error("Verification timeout")), 10000)
         ),
       ]);
 
-      // Update session with final result
+      // Update session with verification data for client-side contract interaction
       await updateSession(sessionId, {
-        status: (verifyResult as any).ok ? "success" : "failed",
-        result: verifyResult,
-        error: !(verifyResult as any).ok ? "Verification failed" : undefined,
+        status: "pending_signature",
+        verificationData: verifyResult,
         completedAt: Date.now(),
       });
 
       const response = NextResponse.json({
-        success: (verifyResult as any).ok,
-        status: (verifyResult as any).ok ? "success" : "failed",
-        result: verifyResult,
+        success: true,
+        status: "pending_signature",
+        verificationData: verifyResult,
         sessionId,
       });
 

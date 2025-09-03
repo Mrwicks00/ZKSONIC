@@ -30,7 +30,13 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useBalance, useChainId, useWalletClient } from "wagmi";
+import {
+  useAccount,
+  useBalance,
+  useChainId,
+  useWalletClient,
+  useWriteContract,
+} from "wagmi";
 import { useCredential, type AgeCredential } from "@/hooks/useCredential";
 import {
   useDid,
@@ -41,6 +47,8 @@ import { generateProof, verifyOnChain } from "@/hooks/useProof";
 import { didFromAddress, truncateAddress } from "@/lib/utils";
 import QRCode from "react-qr-code";
 import { Scanner } from "@yudiel/react-qr-scanner";
+import { ADDRESSES } from "@/lib/addresses";
+import { AgeGateABI } from "@/lib/abi/AgeGate";
 import {
   Copy,
   Wallet,
@@ -73,7 +81,12 @@ interface Credential {
   };
 }
 
-type VerificationStatus = "awaiting" | "verifying" | "success" | "failed";
+type VerificationStatus =
+  | "awaiting"
+  | "verifying"
+  | "signing"
+  | "success"
+  | "failed";
 type WalletStatus = "disconnected" | "connecting" | "connected" | "error";
 
 export default function ZKSonicApp() {
@@ -82,6 +95,7 @@ export default function ZKSonicApp() {
   const { data: balance } = useBalance({ address });
   const chainId = useChainId();
   const { data: walletClient } = useWalletClient();
+  const { writeContract, isPending: isContractPending } = useWriteContract();
 
   // Our custom hooks
   const { get: getCredential, set: setCredential } = useCredential();
@@ -399,7 +413,52 @@ export default function ZKSonicApp() {
     }, 2000); // Poll every 2 seconds
   };
 
-  // Handle QR scan and verification (Option 3 - send to server)
+  // Handle contract interaction for verification
+  const handleContractVerification = async (verificationData: any) => {
+    try {
+      const { proof, challengeBytes32, didHash } = verificationData;
+
+      await writeContract({
+        address: ADDRESSES.sonicTestnet.AgeGate as `0x${string}`,
+        abi: AgeGateABI,
+        functionName: "verifyAge",
+        args: [
+          proof.a,
+          proof.b,
+          proof.c,
+          proof.input,
+          challengeBytes32,
+          didHash,
+        ],
+      });
+
+      setVerificationStatus("success");
+      setVerificationData({
+        ageVerified: true,
+        timestamp: new Date().toISOString(),
+        sessionId: verificationData.sessionId,
+      });
+
+      toast({
+        title: "Verification Successful",
+        description: "Age proof has been successfully verified on-chain",
+      });
+    } catch (error: any) {
+      console.error("Contract verification error:", error);
+      setVerificationStatus("failed");
+      setVerificationData({
+        error: error?.message || "Contract verification failed",
+        timestamp: new Date().toISOString(),
+      });
+      toast({
+        title: "Verification Failed",
+        description: error?.message || "Unable to verify age proof on-chain",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle QR scan and verification (Client-side proof generation)
   const handleScan = async (text: string) => {
     try {
       setScanError(null);
@@ -414,19 +473,31 @@ export default function ZKSonicApp() {
         throw new Error("Invalid QR payload - missing session ID");
       }
 
+      if (!payload?.credential) {
+        throw new Error("Invalid QR payload - missing credential data");
+      }
+
       const challengeNumber: number = Number(payload.challenge);
       const sessionId = payload.sessionId;
+      const credential = payload.credential;
 
       setVerificationStatus("verifying");
       setVerificationData(null);
 
-      // Send scan data to server for processing
+      // Generate proof on client side
+      console.log("Generating proof on client side...");
+      const { generateClientProof } = await import("@/lib/client-proof");
+      const proof = await generateClientProof(credential, challengeNumber);
+      console.log("Proof generated successfully");
+
+      // Send proof to server for verification
       const response = await fetch("/api/verify/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId,
           userDid: storedUserDid || userDID,
+          proof, // Include the generated proof
         }),
       });
 
@@ -437,17 +508,19 @@ export default function ZKSonicApp() {
 
       const result = await response.json();
 
-      if (result.success) {
-        setVerificationStatus("success");
+      if (result.success && result.status === "pending_signature") {
+        // Now use Wagmi to sign and submit the transaction
+        setVerificationStatus("signing");
         setVerificationData({
-          ageVerified: true,
-          timestamp: new Date().toISOString(),
-          proofHash: `0x${Math.random().toString(16).slice(2, 18)}`,
+          verificationData: result.verificationData,
           sessionId: result.sessionId,
+          timestamp: new Date().toISOString(),
         });
-        toast({
-          title: "Verification Successful",
-          description: "Age proof has been successfully verified on-chain",
+
+        // Call the contract verification function
+        await handleContractVerification({
+          ...result.verificationData,
+          sessionId: result.sessionId,
         });
       } else {
         setVerificationStatus("failed");
@@ -635,6 +708,26 @@ export default function ZKSonicApp() {
             <p className="text-muted-foreground">
               Processing zero-knowledge proof verification
             </p>
+          </div>
+        );
+      case "signing":
+        return (
+          <div className="text-center">
+            <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-8 h-8 border-2 border-yellow-500/30 border-t-yellow-500 rounded-full animate-spin" />
+            </div>
+            <h3 className="text-lg font-medium text-white mb-2">
+              Signing Transaction...
+            </h3>
+            <p className="text-muted-foreground">
+              Please sign the transaction in your wallet to complete
+              verification
+            </p>
+            {isContractPending && (
+              <p className="text-sm text-yellow-400 mt-2">
+                Transaction pending...
+              </p>
+            )}
           </div>
         );
       case "success":

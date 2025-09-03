@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
       t: "age18",
       challenge,
       sessionId,
+      credential, // Include credential for client-side proof generation
     });
 
     return NextResponse.json({

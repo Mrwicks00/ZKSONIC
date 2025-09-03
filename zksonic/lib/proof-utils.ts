@@ -6,11 +6,7 @@ import { AgeGateABI } from "@/lib/abi/AgeGate";
 
 // Generate proof utility function
 export async function generateProofUtil(credential: any, challenge: number) {
-  const {
-    birthYear,
-    birthMonth,
-    birthDay,
-  } = credential;
+  const { birthYear, birthMonth, birthDay } = credential;
 
   const currentDate = new Date();
   const currentYear = currentDate.getFullYear();
@@ -31,11 +27,7 @@ export async function generateProofUtil(credential: any, challenge: number) {
     challenge,
   };
 
-  const { proof, publicSignals } = await groth16.fullProve(
-    input,
-    WASM,
-    ZKEY
-  );
+  const { proof, publicSignals } = await groth16.fullProve(input, WASM, ZKEY);
 
   const calldata = await groth16.exportSolidityCallData(proof, publicSignals);
   const argv = calldata
@@ -59,42 +51,23 @@ export async function generateProofUtil(credential: any, challenge: number) {
   };
 }
 
-// Verify proof utility function
-export async function verifyProofUtil(proof: any, challenge: number, did: string) {
-  const N = ADDRESSES.sonicTestnet;
-
-  const provider = new ethers.JsonRpcProvider(N.rpcUrl);
-  const wallet = new ethers.Wallet(process.env.SONIC_PRIVATE_KEY!, provider);
-  const ageGate = new ethers.Contract(N.AgeGate, AgeGateABI, wallet);
-
-  const challengeBytes32 = ethers.zeroPadValue(ethers.toBeHex(Number(challenge)), 32);
+// Verify proof utility function - returns verification data for client-side contract interaction
+export async function verifyProofUtil(
+  proof: any,
+  challenge: number,
+  did: string
+) {
+  const challengeBytes32 = ethers.zeroPadValue(
+    ethers.toBeHex(Number(challenge)),
+    32
+  );
   const didHash = ethers.keccak256(ethers.toUtf8Bytes(did));
 
-  // simulate first
-  const simulateResult = await ageGate.verifyAge.staticCall(
-    proof.a,
-    proof.b,
-    proof.c,
-    proof.input,
+  return {
+    ok: true,
+    proof,
     challengeBytes32,
-    didHash
-  );
-
-  if (!simulateResult) {
-    return { ok: false, error: "Proof verification failed" };
-  }
-
-  // execute transaction
-  const tx = await ageGate.verifyAge(
-    proof.a,
-    proof.b,
-    proof.c,
-    proof.input,
-    challengeBytes32,
-    didHash
-  );
-
-  await tx.wait();
-
-  return { ok: true, txHash: tx.hash };
+    didHash,
+    // Contract address and ABI will be used by Wagmi on client side
+  };
 }
