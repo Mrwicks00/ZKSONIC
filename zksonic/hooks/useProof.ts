@@ -82,11 +82,11 @@ export async function generateProof(
   console.log("  [3] =", publicSignals[3], "(currentDay from circuit)");
   console.log("  [4] =", publicSignals[4], "(challenge from circuit)");
   console.log("Reordered for contract:");
-  console.log("  [0] =", input[0], "(currentYear for contract)");
-  console.log("  [1] =", input[1], "(currentMonth for contract)");
-  console.log("  [2] =", input[2], "(currentDay for contract)");
-  console.log("  [3] =", input[3], "(challenge for contract)");
-  console.log("  [4] =", input[4], "(isOver18 for contract)");
+  console.log("  [0] =", input[0], "(isOver18 for contract)");
+  console.log("  [1] =", input[1], "(currentYear for contract)");
+  console.log("  [2] =", input[2], "(currentMonth for contract)");
+  console.log("  [3] =", input[3], "(currentDay for contract)");
+  console.log("  [4] =", input[4], "(challenge for contract)");
 
   return {
     a,
