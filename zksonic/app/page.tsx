@@ -43,7 +43,11 @@ import {
   registerDidWithWallet,
   checkDidRegistration,
 } from "@/hooks/useDid";
-import { generateProof, verifyOnChain } from "@/hooks/useProof";
+import {
+  generateProof,
+  verifyOnChain,
+  verifyDirectlyWithGroth16,
+} from "@/hooks/useProof";
 import { didFromAddress, truncateAddress } from "@/lib/utils";
 import QRCode from "react-qr-code";
 import { Scanner } from "@yudiel/react-qr-scanner";
@@ -489,75 +493,53 @@ export default function ZKSonicApp() {
         storedUserDid || userDID
       );
 
-      console.log("Proof generated, submitting to server...");
+      console.log(
+        "Proof generated, verifying directly with Groth16Verifier..."
+      );
       setVerificationStatus("signing");
 
-      // Submit proof to server for blockchain submission
-      const submitResult = await fetch("/api/verify/scan", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          sessionId,
-          userDid: storedUserDid || userDID,
-          proof: {
-            a,
-            b,
-            c,
-            input,
-            challengeBytes32,
-            didHash,
-          },
-        }),
-      });
-
-      if (!submitResult.ok) {
-        const errorData = await submitResult.json();
-        throw new Error(
-          `Verification failed: ${errorData.error || "Unknown error"}`
-        );
+      // Option 1: Verify directly with Groth16Verifier (bypasses broken AgeGate)
+      if (!walletClient) {
+        throw new Error("Wallet client not available");
       }
 
-      const result = await submitResult.json();
+      const verificationResult = await verifyDirectlyWithGroth16({
+        a,
+        b,
+        c,
+        input,
+        walletClient,
+      });
 
-      if (result.success) {
-        const isOver18 = result.result?.isOver18;
-        
-        if (isOver18) {
-          setVerificationStatus("success");
-          setVerificationData({
-            ageVerified: true,
-            timestamp: new Date().toISOString(),
-            sessionId: sessionId,
-            transactionHash: result.result?.transactionHash,
-            blockNumber: result.result?.blockNumber,
-          });
+      console.log("Direct verification result:", verificationResult);
 
-          toast({
-            title: "Verification Successful",
-            description: `Age proof verified on blockchain! Transaction: ${result.result?.transactionHash?.slice(
-              0,
-              10
-            )}...`,
-          });
-        } else {
-          setVerificationStatus("failed");
-          setVerificationData({
-            ageVerified: false,
-            timestamp: new Date().toISOString(),
-            sessionId: sessionId,
-            transactionHash: result.result?.transactionHash,
-            blockNumber: result.result?.blockNumber,
-            error: "Age verification failed - user is under 18",
-          });
+      if (verificationResult.success) {
+        setVerificationStatus("success");
+        setVerificationData({
+          ageVerified: true,
+          timestamp: new Date().toISOString(),
+          sessionId: sessionId,
+          message: verificationResult.message,
+        });
 
-          toast({
-            title: "Verification Failed",
-            description: "Age verification failed - user is under 18",
-            variant: "destructive",
-          });
-        }
+        toast({
+          title: "Verification Successful",
+          description: verificationResult.message,
+        });
       } else {
-        throw new Error("Blockchain submission failed");
+        setVerificationStatus("failed");
+        setVerificationData({
+          ageVerified: false,
+          timestamp: new Date().toISOString(),
+          sessionId: sessionId,
+          error: verificationResult.message,
+        });
+
+        toast({
+          title: "Verification Failed",
+          description: verificationResult.message,
+          variant: "destructive",
+        });
       }
       setScanActive(false);
     } catch (e: any) {
@@ -818,8 +800,8 @@ export default function ZKSonicApp() {
               Verification Failed
             </h3>
             <p className="text-muted-foreground mb-4">
-              {verificationData?.ageVerified === false 
-                ? "Age verification failed - User is under 18" 
+              {verificationData?.ageVerified === false
+                ? "Age verification failed - User is under 18"
                 : "Unable to verify the submitted proof"}
             </p>
             {verificationData && (
@@ -846,7 +828,12 @@ export default function ZKSonicApp() {
                     <p>
                       <span className="font-medium">Transaction:</span>{" "}
                       <button
-                        onClick={() => copyToClipboard(verificationData.transactionHash, "Transaction Hash")}
+                        onClick={() =>
+                          copyToClipboard(
+                            verificationData.transactionHash,
+                            "Transaction Hash"
+                          )
+                        }
                         className="text-blue-400 hover:text-blue-300 underline"
                       >
                         {truncateAddress(verificationData.transactionHash)}

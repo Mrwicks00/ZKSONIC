@@ -1,5 +1,7 @@
 import { todayUTC } from "@/lib/utils";
 import { groth16 } from "snarkjs";
+import { useWalletClient, useReadContract } from "wagmi";
+import { Groth16VerifierABI } from "@/lib/abi/Groth16Verifier";
 
 export type GenerateProofResp = {
   a: [string, string];
@@ -128,4 +130,40 @@ export async function verifyOnChain(params: {
     transactionHash?: string;
     blockNumber?: number;
   }>;
+}
+
+// Option 1: Direct Groth16Verifier verification (bypasses broken AgeGate)
+export async function verifyDirectlyWithGroth16(params: {
+  a: [string, string];
+  b: [[string, string], [string, string]];
+  c: [string, string];
+  input: string[];
+  walletClient: any;
+}) {
+  const { a, b, c, input, walletClient } = params;
+
+  // Call Groth16Verifier directly
+  const proofValid = await walletClient.readContract({
+    address: "0xCB2F21E45EA243E3CDF4b168a8d8Aad340d181B5", // Groth16Verifier address
+    abi: Groth16VerifierABI,
+    functionName: "verifyProof",
+    args: [a, b, c, input],
+  });
+
+  // Check if person is over 18 (input[0] should be 1)
+  const isOver18 = BigInt(input[0]) === 1n;
+
+  console.log("Groth16Verifier result:", proofValid);
+  console.log("isOver18 from input[0]:", isOver18);
+  console.log("Final verification result:", proofValid && isOver18);
+
+  return {
+    success: proofValid && isOver18,
+    proofValid,
+    isOver18,
+    message:
+      proofValid && isOver18
+        ? "Age verification successful"
+        : "Age verification failed (under 18)",
+  };
 }

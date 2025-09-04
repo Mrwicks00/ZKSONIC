@@ -100,6 +100,27 @@ async function runCase(
         "Groth16Verifier.verifyProof:",
         okRaw ? "✅ valid" : "❌ invalid"
       );
+
+      // Debug: Log the input array being passed to verifier
+      console.log("Input array passed to verifier:");
+      for (let i = 0; i < input.length; i++) {
+        console.log(`  input[${i}]: ${input[i]} (${BigInt(input[i])})`);
+      }
+
+      // Option 1: Direct verification logic (bypassing AgeGate)
+      const isOver18 = BigInt(input[0]) === 1n;
+      const finalResult = okRaw && isOver18;
+
+      console.log("=== Option 1 Direct Verification ===");
+      console.log("Groth16Verifier result:", okRaw);
+      console.log("isOver18 from input[0]:", isOver18);
+      console.log("Final verification result:", finalResult);
+      console.log("Expected result:", isAdult ? "✅ PASS" : "❌ FAIL");
+      console.log("Option 1 result:", finalResult ? "✅ PASS" : "❌ FAIL");
+      console.log(
+        "Option 1 matches expected:",
+        finalResult === isAdult ? "✅ YES" : "❌ NO"
+      );
     } catch (error) {
       console.error("Error calling verifyProof:", error);
       return;
@@ -107,24 +128,55 @@ async function runCase(
 
     // AgeGate wrapper (returns bool, does extra checks and emits event)
     try {
-      // First, simulate the call to get the result
-      const okGate: boolean = await ageGate.verifyAge.staticCall(
-        a,
-        b,
-        c,
-        input,
-        challenge,
-        didHash
-      );
-      console.log(
-        "AgeGate.verifyAge (staticCall):",
-        okGate ? "✅ PASS (over 18)" : "❌ FAIL (under 18)"
-      );
-
-      // If you want to actually execute the transaction (not just simulate):
+      // Execute the actual transaction
       const tx = await ageGate.verifyAge(a, b, c, input, challenge, didHash);
       const receipt = await tx.wait();
       console.log("Transaction executed, gas used:", receipt.gasUsed);
+
+      // Debug: Log all transaction logs
+      console.log("Transaction receipt logs:", receipt.logs.length);
+      for (let i = 0; i < receipt.logs.length; i++) {
+        const log = receipt.logs[i];
+        console.log(`Log ${i}:`, {
+          address: log.address,
+          topics: log.topics,
+          data: log.data,
+        });
+      }
+
+      // Parse the AgeVerified event using viem
+      const { parseAbi, parseEventLogs } = await import("viem");
+      const ageGateAbi = parseAbi([
+        "event AgeVerified(address indexed caller, bytes32 indexed challenge, bytes32 indexed subjectDidHash, bool isOver18)",
+      ]);
+
+      let actualResult = false;
+      try {
+        const parsedLogs = parseEventLogs({
+          abi: ageGateAbi,
+          logs: receipt.logs,
+          eventName: "AgeVerified",
+        });
+
+        if (parsedLogs.length > 0) {
+          const event = parsedLogs[0];
+          actualResult = event.args.isOver18;
+          console.log("AgeVerified event parsed with viem:", {
+            caller: event.args.caller,
+            challenge: event.args.challenge,
+            subjectDidHash: event.args.subjectDidHash,
+            isOver18: actualResult,
+          });
+        } else {
+          console.log("No AgeVerified events found in logs");
+        }
+      } catch (error) {
+        console.error("Error parsing events with viem:", error);
+      }
+      console.log(
+        "AgeGate.verifyAge result:",
+        actualResult ? "✅ PASS (over 18)" : "❌ FAIL (under 18)"
+      );
     } catch (error) {
       console.error("Error calling AgeGate.verifyAge:", error);
     }

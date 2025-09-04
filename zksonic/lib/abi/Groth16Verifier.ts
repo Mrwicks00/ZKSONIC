@@ -1,25 +1,24 @@
-// lib/abi/Groth16Verifier.ts
 export const Groth16VerifierABI = [
   {
     inputs: [
       {
         internalType: "uint256[2]",
-        name: "_pA",
+        name: "a",
         type: "uint256[2]",
       },
       {
         internalType: "uint256[2][2]",
-        name: "_pB",
+        name: "b",
         type: "uint256[2][2]",
       },
       {
         internalType: "uint256[2]",
-        name: "_pC",
+        name: "c",
         type: "uint256[2]",
       },
       {
         internalType: "uint256[5]",
-        name: "_pubSignals",
+        name: "input",
         type: "uint256[5]",
       },
     ],
