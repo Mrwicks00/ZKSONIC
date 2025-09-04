@@ -36,6 +36,7 @@ import {
   useChainId,
   useWalletClient,
   useWriteContract,
+  usePublicClient,
 } from "wagmi";
 import { useCredential, type AgeCredential } from "@/hooks/useCredential";
 import {
@@ -99,6 +100,7 @@ export default function ZKSonicApp() {
   const { data: balance } = useBalance({ address });
   const chainId = useChainId();
   const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
   const { writeContract, isPending: isContractPending } = useWriteContract();
 
   // Our custom hooks
@@ -499,8 +501,8 @@ export default function ZKSonicApp() {
       setVerificationStatus("signing");
 
       // Option 1: Verify directly with Groth16Verifier (bypasses broken AgeGate)
-      if (!walletClient) {
-        throw new Error("Wallet client not available");
+      if (!publicClient) {
+        throw new Error("Public client not available");
       }
 
       const verificationResult = await verifyDirectlyWithGroth16({
@@ -508,7 +510,7 @@ export default function ZKSonicApp() {
         b,
         c,
         input,
-        walletClient,
+        publicClient,
       });
 
       console.log("Direct verification result:", verificationResult);

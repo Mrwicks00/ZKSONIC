@@ -1,6 +1,6 @@
 import { todayUTC } from "@/lib/utils";
 import { groth16 } from "snarkjs";
-import { useWalletClient, useReadContract } from "wagmi";
+import { useWalletClient, useReadContract, usePublicClient } from "wagmi";
 import { Groth16VerifierABI } from "@/lib/abi/Groth16Verifier";
 
 export type GenerateProofResp = {
@@ -138,12 +138,12 @@ export async function verifyDirectlyWithGroth16(params: {
   b: [[string, string], [string, string]];
   c: [string, string];
   input: string[];
-  walletClient: any;
+  publicClient: any;
 }) {
-  const { a, b, c, input, walletClient } = params;
+  const { a, b, c, input, publicClient } = params;
 
   // Call Groth16Verifier directly
-  const proofValid = await walletClient.readContract({
+  const proofValid = await publicClient.readContract({
     address: "0xCB2F21E45EA243E3CDF4b168a8d8Aad340d181B5", // Groth16Verifier address
     abi: Groth16VerifierABI,
     functionName: "verifyProof",
