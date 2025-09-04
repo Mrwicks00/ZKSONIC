@@ -95,13 +95,28 @@ type VerificationStatus =
 type WalletStatus = "disconnected" | "connecting" | "connected" | "error";
 
 export default function ZKSonicApp() {
-  // RainbowKit hooks
+  // RainbowKit hooks - only run on client side
   const { address, isConnected } = useAccount();
   const { data: balance } = useBalance({ address });
   const chainId = useChainId();
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
   const { writeContract, isPending: isContractPending } = useWriteContract();
+
+  // Client-side only check
+  const isClient = typeof window !== "undefined";
+
+  // Show loading state during SSR
+  if (!isClient) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading ZKSonic...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Our custom hooks
   const { get: getCredential, set: setCredential } = useCredential();
