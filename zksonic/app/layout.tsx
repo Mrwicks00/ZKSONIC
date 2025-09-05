@@ -5,7 +5,17 @@ import { GeistMono } from "geist/font/mono";
 import { Analytics } from "@vercel/analytics/next";
 import { Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
-import { Providers } from "@/components/providers";
+import dynamic from "next/dynamic";
+
+const Providers = dynamic(
+  () =>
+    import("@/components/providers").then((mod) => ({
+      default: mod.Providers,
+    })),
+  {
+    ssr: false,
+  }
+);
 import "@rainbow-me/rainbowkit/styles.css";
 import "./globals.css";
 
