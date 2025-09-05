@@ -385,8 +385,8 @@ export default function ZKSonicApp() {
                 error: "Age verification failed - user is under 18",
               });
               toast({
-                title: "Verification Failed",
-                description: "User is under 18",
+                title: "Age Restriction",
+                description: "You must be 18 or older to access this service",
                 variant: "destructive",
               });
             }
@@ -483,8 +483,8 @@ export default function ZKSonicApp() {
           });
 
           toast({
-            title: "Verification Failed",
-            description: "Age verification failed - User is under 18",
+            title: "Age Restriction",
+            description: "You must be 18 or older to access this service",
             variant: "destructive",
           });
         }
@@ -609,8 +609,8 @@ export default function ZKSonicApp() {
           });
 
           toast({
-            title: "Verification Failed",
-            description: "Age verification failed - user is under 18",
+            title: "Age Restriction",
+            description: "You must be 18 or older to access this service",
             variant: "destructive",
           });
         }
@@ -867,17 +867,33 @@ export default function ZKSonicApp() {
           </div>
         );
       case "failed":
+        const isUnder18 =
+          verificationData?.error?.includes("under 18") ||
+          verificationData?.ageVerified === false;
+
         return (
           <div className="text-center">
-            <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <X className="w-8 h-8 text-red-400" />
+            <div
+              className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
+                isUnder18 ? "bg-orange-500/20" : "bg-red-500/20"
+              }`}
+            >
+              <X
+                className={`w-8 h-8 ${
+                  isUnder18 ? "text-orange-400" : "text-red-400"
+                }`}
+              />
             </div>
-            <h3 className="text-lg font-medium text-red-400 mb-2">
-              Verification Failed
+            <h3
+              className={`text-lg font-medium mb-2 ${
+                isUnder18 ? "text-orange-400" : "text-red-400"
+              }`}
+            >
+              {isUnder18 ? "Age Restriction" : "Verification Failed"}
             </h3>
             <p className="text-muted-foreground mb-4">
-              {verificationData?.ageVerified === false
-                ? "Age verification failed - User is under 18"
+              {isUnder18
+                ? "You must be 18 or older to access this service"
                 : "Proof verification failed - Please try scanning again"}
             </p>
             {verificationData && (
