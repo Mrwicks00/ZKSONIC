@@ -86,16 +86,25 @@ export async function POST(request: NextRequest) {
 
       console.log("Verification submitted successfully:", submitResult);
 
-      // Update session with success
-      await updateSession(sessionId, {
-        status: "success",
-        result: submitResult,
-        completedAt: Date.now(),
-      });
+      // Update session based on age verification result
+      if (submitResult.isOver18 === true) {
+        await updateSession(sessionId, {
+          status: "success",
+          result: submitResult,
+          completedAt: Date.now(),
+        });
+      } else {
+        await updateSession(sessionId, {
+          status: "failed",
+          result: submitResult,
+          error: "User is under 18",
+          completedAt: Date.now(),
+        });
+      }
 
       const response = NextResponse.json({
-        success: true,
-        status: "success",
+        success: submitResult.isOver18 === true,
+        status: submitResult.isOver18 === true ? "success" : "failed",
         result: submitResult,
         sessionId,
       });

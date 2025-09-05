@@ -359,20 +359,37 @@ export default function ZKSonicApp() {
 
         if (response.ok) {
           const data = await response.json();
+          const isOver18 = data?.result?.isOver18 === true;
 
           if (data.status === "success") {
-            setVerificationStatus("success");
-            setVerificationData({
-              ageVerified: true,
-              timestamp: new Date().toISOString(),
-              proofHash: `0x${Math.random().toString(16).slice(2, 18)}`,
-              credentialId: data.result?.credentialId,
-              sessionId: data.sessionId,
-            });
-            toast({
-              title: "Verification Successful",
-              description: "Age proof has been successfully verified on-chain",
-            });
+            if (isOver18) {
+              setVerificationStatus("success");
+              setVerificationData({
+                ageVerified: true,
+                timestamp: new Date().toISOString(),
+                proofHash: `0x${Math.random().toString(16).slice(2, 18)}`,
+                credentialId: data.result?.credentialId,
+                sessionId: data.sessionId,
+              });
+              toast({
+                title: "Verification Successful",
+                description:
+                  "Age proof has been successfully verified - User is 18+",
+              });
+            } else {
+              setVerificationStatus("failed");
+              setVerificationData({
+                ageVerified: false,
+                timestamp: new Date().toISOString(),
+                sessionId: data.sessionId,
+                error: "Age verification failed - user is under 18",
+              });
+              toast({
+                title: "Verification Failed",
+                description: "User is under 18",
+                variant: "destructive",
+              });
+            }
             clearInterval(pollInterval);
             setIsPolling(false);
           } else if (data.status === "failed") {
