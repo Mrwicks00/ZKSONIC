@@ -127,6 +127,9 @@ export async function verifyOnChain(params: {
 
   return res.json() as Promise<{
     success: boolean;
+    isOver18?: boolean;
+    proofValid?: boolean;
+    message?: string;
     transactionHash?: string;
     blockNumber?: number;
   }>;

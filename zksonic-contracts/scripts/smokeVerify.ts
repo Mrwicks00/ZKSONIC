@@ -110,6 +110,7 @@ async function runCase(
       // Option 1: Direct verification logic (bypassing AgeGate)
       const isOver18 = BigInt(input[0]) === 1n;
       const finalResult = okRaw && isOver18;
+      const isAdult = finalResult === isOver18;
 
       console.log("=== Option 1 Direct Verification ===");
       console.log("Groth16Verifier result:", okRaw);
