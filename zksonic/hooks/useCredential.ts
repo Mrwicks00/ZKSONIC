@@ -1,3 +1,5 @@
+"use client";
+
 // hooks/useCredential.ts
 import { STORAGE } from "@/lib/utils";
 

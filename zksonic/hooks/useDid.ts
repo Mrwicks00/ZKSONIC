@@ -1,3 +1,5 @@
+"use client";
+
 // hooks/useDid.ts
 import { ethers } from "ethers";
 import { ADDRESSES } from "@/lib/addresses";
