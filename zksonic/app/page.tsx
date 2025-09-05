@@ -106,6 +106,9 @@ export default function ZKSonicApp() {
   const [credential, setCredentialState] = useState<AgeCredential | null>(null);
   const [isIssuing, setIsIssuing] = useState(false);
 
+  // Client-side mounting check
+  const [mounted, setMounted] = useState(false);
+
   // Verification state
   const [verificationStatus, setVerificationStatus] =
     useState<VerificationStatus>("awaiting");
@@ -139,6 +142,11 @@ export default function ZKSonicApp() {
   const storedCredential =
     typeof window !== "undefined" ? getCredential() : null;
   const storedUserDid = typeof window !== "undefined" ? getUserDid() : null;
+
+  // Client-side mounting effect
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Load stored credential on mount (client-side only)
   useEffect(() => {
@@ -918,6 +926,20 @@ export default function ZKSonicApp() {
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center mx-auto mb-4">
+            <Shield className="w-5 h-5 text-primary-foreground animate-pulse" />
+          </div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
