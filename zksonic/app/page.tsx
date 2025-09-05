@@ -551,8 +551,13 @@ export default function ZKSonicApp() {
       console.log("PC verification result:", result);
 
       if (result.success) {
-        const isOver18 = result.result?.isOver18;
-        console.log("PC isOver18 value:", isOver18);
+        const isOver18 = result.result?.isOver18 === true;
+        console.log(
+          "PC isOver18 value:",
+          isOver18,
+          "type:",
+          typeof result.result?.isOver18
+        );
 
         if (isOver18) {
           setVerificationStatus("success");
