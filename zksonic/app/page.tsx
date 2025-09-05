@@ -401,7 +401,8 @@ export default function ZKSonicApp() {
             });
             toast({
               title: "Verification Failed",
-              description: data.error || "Unable to verify age proof",
+              description:
+                data.error || "Proof verification failed - Please try again",
               variant: "destructive",
             });
             clearInterval(pollInterval);
@@ -499,7 +500,8 @@ export default function ZKSonicApp() {
       });
       toast({
         title: "Verification Failed",
-        description: error?.message || "Unable to verify age proof on-chain",
+        description:
+          error?.message || "Blockchain verification failed - Please try again",
         variant: "destructive",
       });
     }
@@ -560,7 +562,9 @@ export default function ZKSonicApp() {
       if (!submitResult.ok) {
         const errorData = await submitResult.json();
         throw new Error(
-          `Verification failed: ${errorData.error || "Unknown error"}`
+          `Proof verification failed: ${
+            errorData.error || "Please try scanning again"
+          }`
         );
       }
 
@@ -874,7 +878,7 @@ export default function ZKSonicApp() {
             <p className="text-muted-foreground mb-4">
               {verificationData?.ageVerified === false
                 ? "Age verification failed - User is under 18"
-                : "Unable to verify the submitted proof"}
+                : "Proof verification failed - Please try scanning again"}
             </p>
             {verificationData && (
               <div className="bg-muted/50 rounded-lg p-4 border border-border text-left">
