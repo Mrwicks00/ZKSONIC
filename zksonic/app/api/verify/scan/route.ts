@@ -5,15 +5,7 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, updateSession } from "@/lib/redis-sessions";
-import {
-  createWalletClient,
-  http,
-  parseAbi,
-  defineChain,
-  createPublicClient,
-} from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { ethers } from "ethers";
+import { createPublicClient, http, parseAbi, defineChain } from "viem";
 import { ADDRESSES } from "@/lib/addresses";
 
 export async function POST(request: NextRequest) {
@@ -82,8 +74,8 @@ export async function POST(request: NextRequest) {
         "Received client-generated proof, submitting to blockchain..."
       );
 
-      // Submit verification directly (no HTTP call needed)
-      const submitResult = await submitVerificationToBlockchain({
+      // Use direct Groth16Verifier verification (bypass AgeGate)
+      const submitResult = await verifyWithGroth16Direct({
         a: proof.a,
         b: proof.b,
         c: proof.c,
@@ -150,9 +142,9 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// AgeGate ABI - Exact match to deployed contract
-const AgeGateABI = parseAbi([
-  "function verifyAge(uint256[2] calldata a, uint256[2][2] calldata b, uint256[2] calldata c, uint256[5] calldata input, bytes32 challenge, bytes32 subjectDidHash) external returns (bool)",
+// Groth16Verifier ABI - Direct verification
+const Groth16VerifierABI = parseAbi([
+  "function verifyProof(uint256[2] calldata a, uint256[2][2] calldata b, uint256[2] calldata c, uint256[5] calldata input) external view returns (bool)",
 ]);
 
 interface VerificationSubmission {
@@ -164,21 +156,10 @@ interface VerificationSubmission {
   didHash: string;
 }
 
-async function submitVerificationToBlockchain(params: VerificationSubmission) {
-  const { a, b, c, input, challengeBytes32, didHash } = params;
+async function verifyWithGroth16Direct(params: VerificationSubmission) {
+  const { a, b, c, input } = params;
 
-  console.log("Submitting verification to blockchain");
-
-  // Get private key from environment
-  let privateKey = process.env.SONIC_PRIVATE_KEY;
-  if (!privateKey) {
-    throw new Error("SONIC_PRIVATE_KEY not found in environment variables");
-  }
-
-  // Ensure private key has 0x prefix
-  if (!privateKey.startsWith("0x")) {
-    privateKey = "0x" + privateKey;
-  }
+  console.log("Verifying with Groth16Verifier directly");
 
   // Create custom chain configuration (matching our addresses.ts)
   const sonicTestnet = defineChain({
@@ -195,96 +176,66 @@ async function submitVerificationToBlockchain(params: VerificationSubmission) {
     testnet: true,
   });
 
-  // Create wallet client
-  const account = privateKeyToAccount(privateKey as `0x${string}`);
-  const walletClient = createWalletClient({
-    account,
-    chain: sonicTestnet,
-    transport: http(),
-  });
-
-  // Create public client for balance checking
+  // Create public client for verification
   const publicClient = createPublicClient({
     chain: sonicTestnet,
     transport: http(),
   });
 
-  console.log("Wallet client created for address:", account.address);
   console.log(
-    "Contract address:",
-    process.env.AGEGATE_ADDRESS || "0xcBFb34c4BF995448262C7A7eb3D1Ae5Eb2Fd4342"
+    "Groth16Verifier address:",
+    ADDRESSES.sonicTestnet.Groth16Verifier
   );
-  console.log("Challenge bytes32:", challengeBytes32);
-  console.log("DID hash:", didHash);
   console.log("Input array:", input);
-  console.log("Submitting transaction...");
+  console.log("Verifying proof directly...");
 
-  // Check account balance first
-  const balance = await publicClient.getBalance({ address: account.address });
-  console.log("Account balance:", balance.toString(), "wei");
+  // Convert string arrays to bigint arrays for Groth16Verifier
+  const aBigInt: [bigint, bigint] = [BigInt(a[0]), BigInt(a[1])];
+  const bBigInt: [[bigint, bigint], [bigint, bigint]] = [
+    [BigInt(b[0][0]), BigInt(b[0][1])],
+    [BigInt(b[1][0]), BigInt(b[1][1])],
+  ];
+  const cBigInt: [bigint, bigint] = [BigInt(c[0]), BigInt(c[1])];
+  const inputBigInt: [bigint, bigint, bigint, bigint, bigint] = [
+    BigInt(input[0]),
+    BigInt(input[1]),
+    BigInt(input[2]),
+    BigInt(input[3]),
+    BigInt(input[4]),
+  ];
 
-  // Submit the verification transaction
-  const hash = await walletClient.writeContract({
-    address: (process.env.AGEGATE_ADDRESS ||
-      "0xcBFb34c4BF995448262C7A7eb3D1Ae5Eb2Fd4342") as `0x${string}`,
-    abi: AgeGateABI,
-    functionName: "verifyAge",
-    args: [
-      a.map((x) => BigInt(x)) as [bigint, bigint],
-      b.map((row) => row.map((x) => BigInt(x))) as [
-        [bigint, bigint],
-        [bigint, bigint]
-      ],
-      c.map((x) => BigInt(x)) as [bigint, bigint],
-      input.map((x) => BigInt(x)) as [bigint, bigint, bigint, bigint, bigint],
-      challengeBytes32 as `0x${string}`,
-      didHash as `0x${string}`,
-    ],
+  // Direct Groth16Verifier verification (no transaction needed)
+  const proofValid = await publicClient.readContract({
+    address: ADDRESSES.sonicTestnet.Groth16Verifier as `0x${string}`,
+    abi: Groth16VerifierABI,
+    functionName: "verifyProof",
+    args: [aBigInt, bBigInt, cBigInt, inputBigInt],
   });
 
-  console.log("Transaction submitted:", hash);
+  console.log("Groth16Verifier result:", proofValid);
 
-  // Wait for transaction receipt
-  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  // Check if person is over 18 (input[0] should be 1 - matching smokeVerify)
+  const isOver18 = inputBigInt[0] === BigInt(1);
+  const finalResult = proofValid && isOver18;
 
-  if (receipt.status === "success") {
-    console.log("Verification successful, transaction confirmed");
+  console.log("isOver18 from input[0]:", isOver18);
+  console.log("Final verification result:", finalResult);
 
-    // Parse the AgeVerified event to get the actual result
-    const iface = new ethers.Interface([
-      "event AgeVerified(address indexed caller, bytes32 indexed challenge, bytes32 indexed subjectDidHash, bool isOver18)",
-    ]);
-
-    let actualResult = false;
-    for (const log of receipt.logs) {
-      try {
-        const parsed = iface.parseLog(log);
-        if (parsed?.name === "AgeVerified") {
-          actualResult = parsed.args.isOver18;
-          console.log("AgeVerified event found:", {
-            caller: parsed.args.caller,
-            challenge: parsed.args.challenge,
-            subjectDidHash: parsed.args.subjectDidHash,
-            isOver18: actualResult,
-          });
-        }
-      } catch (error) {
-        // Log might not be from our contract, continue
-      }
-    }
-
-    console.log("Actual verification result from event:", actualResult);
-
+  if (finalResult) {
+    console.log("Verification successful - User is over 18");
     return {
       success: true,
-      transactionHash: hash,
-      blockNumber: receipt.blockNumber.toString(),
-      isOver18: actualResult, // The real result from the event
-      message: actualResult
-        ? "Age verification passed (over 18)"
-        : "Age verification failed (under 18)",
+      isOver18: true,
+      proofValid: proofValid,
+      message: "Age verification successful - User is over 18",
     };
   } else {
-    throw new Error("Transaction failed");
+    console.log("Verification failed - User is under 18");
+    return {
+      success: true,
+      isOver18: false,
+      proofValid: proofValid,
+      message: "Age verification failed - User is under 18",
+    };
   }
 }

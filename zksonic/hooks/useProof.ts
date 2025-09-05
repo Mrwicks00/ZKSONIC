@@ -57,42 +57,29 @@ export async function generateProof(
   ];
   const c: [string, string] = [argv[2][0], argv[2][1]];
 
-  // Reorder public signals to match smart contract expectation
+  // Use raw input array from circuit (no reordering needed)
   // Circuit outputs: [currentYear, currentMonth, currentDay, challenge, isOver18]
-  // Smart contract expects: [isOver18, currentYear, currentMonth, currentDay, challenge]
-  const rawInput: string[] = argv[3];
-  
-  // Convert challenge to match challengeBytes32 format (BigInt as hex string)
-  const challengeBigInt = BigInt(rawInput[3]);
-  const challengeHex = "0x" + challengeBigInt.toString(16).padStart(64, '0');
-  
-  const input: string[] = [
-    rawInput[4], // isOver18 (moved to position 0)
-    rawInput[0], // currentYear
-    rawInput[1], // currentMonth
-    rawInput[2], // currentDay
-    challengeHex, // challenge (converted to match challengeBytes32 format)
-  ];
+  // AgeGate contract expects: input[0]=isOver18, input[4]=challenge
+  const input: string[] = argv[3];
 
   console.log("Raw public signals from circuit:", publicSignals);
   console.log("Input array for contract:", input);
-  console.log("Input[0] (should be isOver18):", input[0]);
-  console.log("Input[4] (should be challenge):", input[4]);
-  console.log("Challenge conversion:", {
-    original: rawInput[3],
-    bigInt: challengeBigInt.toString(),
-    hex: challengeHex,
-    challengeBytes32: challengeBytes32
+  console.log("Input[0] (isOver18):", input[0]);
+  console.log("Input[4] (challenge):", input[4]);
+  console.log("Challenge comparison:", {
+    input4: input[4],
+    challengeBytes32: challengeBytes32,
+    match: input[4] === challengeBytes32,
   });
 
-  // Debug: Check what each public signal represents
+  // Debug: Check what each public signal represents (matching smokeVerify)
   console.log("Public signals analysis:");
   console.log("  [0] =", publicSignals[0], "(isOver18 from circuit)");
   console.log("  [1] =", publicSignals[1], "(currentYear from circuit)");
   console.log("  [2] =", publicSignals[2], "(currentMonth from circuit)");
   console.log("  [3] =", publicSignals[3], "(currentDay from circuit)");
   console.log("  [4] =", publicSignals[4], "(challenge from circuit)");
-  console.log("Reordered for contract:");
+  console.log("Input array for contract:");
   console.log("  [0] =", input[0], "(isOver18 for contract)");
   console.log("  [1] =", input[1], "(currentYear for contract)");
   console.log("  [2] =", input[2], "(currentMonth for contract)");
