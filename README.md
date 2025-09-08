@@ -8,6 +8,12 @@ Zero-Knowledge Proof (ZKP) based age verification system with decentralized iden
 🖥️ **Works across devices: phone, PC, or kiosk**  
 ✅ **Privacy-preserving: no personal data is shared**
 
+## 🎯 Problem & Solution
+
+**Problem:** Traditional verification systems require sharing personal data (birth dates, ID numbers, credentials) with every platform, creating privacy risks and data breaches.
+
+**Solution:** ZKSONIC uses Zero-Knowledge Proofs to verify eligibility without revealing any personal information. Users prove they meet requirements while keeping their actual data private.
+
 ## 🚀 Features
 
 - **Age verification with ZKPs** – users prove their age eligibility without exposing their DOB
@@ -24,6 +30,7 @@ Zero-Knowledge Proof (ZKP) based age verification system with decentralized iden
 
 - **Next.js** – React framework
 - **Tailwind CSS** – styling
+- **Circom** - writing zkps
 - **snarkjs** – zk-SNARK verification
 - **qrcode** – QR code generation
 - **Viem** – Ethereum interaction
@@ -123,7 +130,7 @@ cd ../zksonic
 npm run dev
 ```
 
-Visit 👉 **http://localhost:3000**
+Visit 👉 **https://zksonic.vercel.app/**
 
 ## 🔍 How it Works
 
