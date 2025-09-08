@@ -1,5 +1,7 @@
 # Sonic Age Verification (ZKSONIC)
 
+![zksonic-logo](zksonic.png)
+
 Zero-Knowledge Proof (ZKP) based age verification system with decentralized identity (DID) that allows users to prove their age eligibility without revealing their actual date of birth.
 
 🔐 **Powered by zk-SNARKs (Groth16)**  
