@@ -992,8 +992,12 @@ export default function ZKSonicApp() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3 min-w-0 flex-1">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                <Shield className="w-5 h-5 text-primary-foreground" />
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0">
+                <img
+                  src="/zksonic.png"
+                  alt="ZKSONIC"
+                  className="h-8 w-8 object-contain"
+                />
               </div>
               <div className="min-w-0">
                 <h1 className="text-lg sm:text-xl font-bold text-foreground">
